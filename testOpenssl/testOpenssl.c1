@@ -1,0 +1,1508 @@
+﻿// testOpenssl.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+//
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include "openssl/evp.h"
+#include "openssl/sm2.h"
+#include "openssl/ec.h"
+#include "openssl/err.h"
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+
+#pragma comment(lib,"libcrypto.lib")
+#pragma comment(lib,"libssl.lib")
+#pragma comment(lib,"Crypt32.lib")
+#pragma comment(lib,"ws2_32.lib")
+
+
+void getOpensslErrMsg()
+{
+#ifdef _DEBUG
+	// 获取最近一次错误代码
+	unsigned long err = ERR_get_error();
+	if (err != 0) {
+		// 将错误代码转换为错误信息
+		char err_msg[256];
+		ERR_error_string_n(err, err_msg, sizeof(err_msg));
+		printf("OpenSSL error: %s\n", err_msg);
+	}
+#endif // _DEBUG
+}
+
+
+//#include "openssl/ec.h"
+static const char Hex[] = "0123456789ABCDEF";
+
+static EC_KEY* CalculateKey(const EC_GROUP* ec_group, const char* privkey_hex_string)
+{
+	EC_KEY* ec_key = NULL;
+	EC_POINT* pubkey = NULL;
+	BIGNUM* privkey = NULL;
+
+	if (!BN_hex2bn(&privkey, (const char*)privkey_hex_string)) return NULL;
+	if ((pubkey = EC_POINT_new(ec_group)) == NULL) goto err;
+	if (!ec_key)
+	{
+		ec_key = EC_KEY_new();
+		if (!ec_key) goto err;
+		if (!EC_KEY_set_group(ec_key, ec_group))
+		{
+			EC_KEY_free(ec_key);
+			ec_key = NULL;
+			goto err;
+		}
+	}
+
+	if (!EC_POINT_mul(ec_group, pubkey, privkey, NULL, NULL, NULL))
+	{
+		EC_KEY_free(ec_key);
+		ec_key = NULL;
+		goto err;
+	}
+
+	if (!EC_KEY_set_private_key(ec_key, privkey) || !EC_KEY_set_public_key(ec_key, pubkey))
+	{
+		EC_KEY_free(ec_key);
+		ec_key = NULL;
+		goto err;
+	}
+
+err:
+	if (privkey) BN_free(privkey);
+	if (pubkey) EC_POINT_free(pubkey);
+
+	return ec_key;
+}
+
+static EC_KEY* CalculatePubKey(const EC_GROUP* ec_group, const char* pub_hex_string)
+{
+	EC_KEY* ec_key = NULL;
+	EC_POINT* pubkey = NULL;
+
+	if ((pubkey = EC_POINT_new(ec_group)) == NULL) goto err;
+	if (!EC_POINT_hex2point(ec_group, pub_hex_string, pubkey, NULL)) goto err;
+
+	if (!ec_key)
+	{
+		ec_key = EC_KEY_new();
+		if (!ec_key) goto err;
+		if (!EC_KEY_set_group(ec_key, ec_group))
+		{
+			EC_KEY_free(ec_key);
+			ec_key = NULL;
+			goto err;
+		}
+	}
+
+	if (!EC_KEY_set_public_key(ec_key, pubkey))
+	{
+		EC_KEY_free(ec_key);
+		ec_key = NULL;
+		goto err;
+	}
+
+err:
+	if (pubkey) EC_POINT_free(pubkey);
+
+	return ec_key;
+}
+/* Must 'OPENSSL_free' the returned data */
+static char* bin2hex(const unsigned char* bin, size_t binLen)
+{
+	int i;
+	char* buf;
+	char* p;
+
+	buf = OPENSSL_malloc(binLen * 2 + 2);
+	if (buf == NULL) {
+		BNerr(BN_F_BN_BN2HEX, ERR_R_MALLOC_FAILURE);
+		goto err;
+	}
+	p = buf;
+	for (i = 0; i < binLen; i++) {
+		*p++ = Hex[bin[i] >> 4];
+		*p++ = Hex[bin[i] & 0x0f];
+	}
+	*p = '\0';
+err:
+	return buf;
+}
+static int hex2bin(const char* hex, unsigned char* bin)
+{
+	int i;
+	int len = strlen(hex);
+	if (len % 2 != 0) return -1;
+	for (i = 0; i < len; i += 2)
+	{
+		char tmp[3] = { hex[i],hex[i + 1],'\0' };
+		bin[i / 2] = (unsigned char)strtol(tmp, NULL, 16);
+	}
+	return len / 2;
+}
+
+int sm2Sign(const char* privKey, unsigned char* data, size_t dataLen, unsigned char* sign, size_t* signLen)
+{
+	int ret = -1;
+	EVP_PKEY* sm2key = NULL;
+	EC_GROUP* sm2group = NULL;
+	EVP_PKEY_CTX* pctx = NULL;
+	EVP_MD_CTX* md_ctx = NULL;
+	unsigned char digest[EVP_MAX_MD_SIZE];
+	unsigned char* out = NULL;
+	size_t len;
+	int loop, ilen;
+	//const char* data = "abc";
+	/*if (argc < 2)
+	{
+		printf("Usage: %s testmessage\n", argv[0]);
+		exit(0);
+	}*/
+
+	OpenSSL_add_all_algorithms();
+
+	/*First Generate SM2 Key*/
+	sm2key = EVP_PKEY_new();
+	if (!sm2key)
+	{
+		printf("Alloc EVP_PKEY Object error.\n");
+		goto err;
+	}
+	sm2group = EC_GROUP_new_by_curve_name(NID_sm2);
+	if (!sm2group)
+	{
+		goto err;
+	}
+	EC_KEY* tmp = CalculateKey((const EC_GROUP*)sm2group, privKey);
+	if (!tmp)
+	{
+		goto err;
+	}
+	EVP_PKEY_assign_EC_KEY(sm2key, tmp);
+
+
+	/*OUTPUT EVP PKEY*/
+	len = i2d_PrivateKey(sm2key, &out);
+	if (len <= 0)
+	{
+		printf("Output SM2 Private Key Error.\n");
+		goto err;
+	}
+
+	printf("Generated SM2 Key: [");
+	for (loop = 0; loop < len; loop++)
+		printf("%02X", out[loop] & 0xff);
+	printf("]\n");
+
+	/*Calculate Z value*/
+	len = sizeof(digest);
+	if (!ECDSA_sm2_get_Z(EVP_PKEY_get0_EC_KEY(sm2key), NULL, NULL, 0, digest, &len))
+	{
+		printf("Calculate Z value Error.\n");
+		goto err;
+	}
+
+	printf("Calculate Z-value: [");
+	for (loop = 0; loop < len; loop++)
+		printf("%02X", digest[loop] & 0xff);
+	printf("]\n");
+
+	/*Calculate DIGEST*/
+	//EVP_MD_CTX_init(md_ctx_ptr);
+	md_ctx = EVP_MD_CTX_new();
+	if (md_ctx == NULL) {
+		printf("EVP_MD_CTX_new() fail!\n");
+		goto err;
+	}
+	EVP_SignInit(md_ctx, EVP_sm3());
+	EVP_SignUpdate(md_ctx, digest, len);
+	EVP_SignUpdate(md_ctx, data, (size_t)strlen(data));
+	if (!EVP_SignFinal(md_ctx, NULL, (unsigned int*)&ilen, sm2key))
+	{
+		printf("Calculate Signature Length error!\n");
+		goto err;
+	}
+
+	/*ALLOC Sign BUFFER*/
+	if (out) OPENSSL_free(out);
+	out = (unsigned char*)OPENSSL_malloc(ilen);
+	if (!out)
+	{
+		printf("Error of alloc memory.\n");
+		goto err;
+	}
+
+	/*SIGN*/
+	if (!EVP_SignFinal(md_ctx, out, (unsigned int*)&ilen, sm2key))
+	{
+		printf("Calculate Signature Length error!\n");
+		goto err;
+	}
+	if (ilen > *signLen)
+	{
+		goto err;
+	}
+	memcpy(sign, out, ilen);
+	*signLen = ilen;
+
+	printf("Signature: [");
+	for (loop = 0; loop < ilen; loop++)
+		printf("%02X", out[loop] & 0xff);
+	printf("]\n");
+
+	ret = 0;
+
+err:
+	if (sm2key) EVP_PKEY_free(sm2key);
+	if (sm2group) EC_GROUP_free(sm2group);
+	if (pctx) EVP_PKEY_CTX_free(pctx);
+	if (out) OPENSSL_free(out);
+	if (md_ctx)EVP_MD_CTX_free(md_ctx);
+
+	return ret;
+}
+int sm2VerifySign(const char* pubKey, unsigned char* data, size_t dataLen, unsigned char* sign, size_t signLen)
+{
+	int ret = -1;
+	EVP_PKEY* sm2key = NULL;
+	EC_GROUP* sm2group = NULL;
+	EVP_PKEY_CTX* pctx = NULL;
+	EVP_MD_CTX* md_ctx = NULL;
+	unsigned char digest[EVP_MAX_MD_SIZE];
+	unsigned char* out = NULL;
+	size_t len;
+	int loop;
+	OpenSSL_add_all_algorithms();
+
+	/*First Generate SM2 Key*/
+	sm2key = EVP_PKEY_new();
+	if (!sm2key)
+	{
+		printf("Alloc EVP_PKEY Object error.\n");
+		goto err;
+	}
+	sm2group = EC_GROUP_new_by_curve_name(NID_sm2);
+	if (!sm2group)
+	{
+		goto err;
+	}
+	EC_KEY* tmp = CalculatePubKey((const EC_GROUP*)sm2group, pubKey);
+	if (!tmp)
+	{
+		goto err;
+	}
+	EVP_PKEY_assign_EC_KEY(sm2key, tmp);
+
+
+	/*OUTPUT EVP PKEY*/
+	len = i2d_PublicKey(sm2key, &out);
+	if (len <= 0)
+	{
+		printf("Output SM2 Private Key Error.\n");
+		goto err;
+	}
+
+	printf("Generated SM2 Key: [");
+	for (loop = 0; loop < len; loop++)
+		printf("%02X", out[loop] & 0xff);
+	printf("]\n");
+
+	/*Calculate Z value*/
+	len = sizeof(digest);
+	if (!ECDSA_sm2_get_Z(EVP_PKEY_get0_EC_KEY(sm2key), NULL, NULL, 0, digest, &len))
+	{
+		printf("Calculate Z value Error.\n");
+		goto err;
+	}
+
+	printf("Calculate Z-value: [");
+	for (loop = 0; loop < len; loop++)
+		printf("%02X", digest[loop] & 0xff);
+	printf("]\n");
+
+
+	/*VERIFY*/
+	md_ctx = EVP_MD_CTX_new();
+	if (md_ctx == NULL) {
+		printf("EVP_MD_CTX_new() fail!\n");
+		goto err;
+	}
+	EVP_VerifyInit(md_ctx, EVP_sm3());
+	EVP_VerifyUpdate(md_ctx, digest, len);
+	EVP_VerifyUpdate(md_ctx, data, (size_t)strlen(data));
+	if (EVP_VerifyFinal(md_ctx, sign, signLen, sm2key) <= 0)
+	{
+		printf("EVP_PKEY_verify Error.\n");
+	}
+	else
+	{
+		printf("EVP_PKEY_verify Successed.\n");
+	}
+	ret = 0;
+err:
+	if (sm2key) EVP_PKEY_free(sm2key);
+	if (sm2group) EC_GROUP_free(sm2group);
+	if (pctx) EVP_PKEY_CTX_free(pctx);
+	if (out) OPENSSL_free(out);
+	if (md_ctx)EVP_MD_CTX_free(md_ctx);
+	return ret;
+}
+
+
+int sm2GenKey(unsigned char* privKey, size_t* privKeyLen, unsigned char* pubKey, size_t* pubKeyLen)
+{
+	int ret = -1;
+	const EC_GROUP* group = NULL;
+	EVP_PKEY* sm2key = NULL;
+	EVP_PKEY_CTX* pctx = NULL;
+	unsigned char* out = NULL;
+	size_t len;
+	int loop;
+	BIGNUM* bn_priv = NULL;
+	//BIGNUM* bn_pub =NULL;
+	const EC_POINT* point = NULL;
+	int pri_len;
+	int pub_len;
+	/*First Generate SM2 Key*/
+	sm2key = EVP_PKEY_new();
+	if (!sm2key)
+	{
+		printf("Alloc EVP_PKEY Object error.\n");
+		goto err;
+	}
+
+	pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+	if (!pctx)
+	{
+		printf("Create EVP_PKEY_CTX Object error.\n");
+		goto err;
+	}
+
+	EVP_PKEY_keygen_init(pctx);
+	if (!EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, NID_sm2))
+	{
+		printf("Set EC curve name error.\n");
+		goto err;
+	}
+
+	if (!EVP_PKEY_CTX_set_ec_param_enc(pctx, OPENSSL_EC_NAMED_CURVE))
+	{
+		printf("Set EC curve is named curve error.\n");
+		goto err;
+	}
+
+	if (EVP_PKEY_keygen(pctx, &sm2key) <= 0)
+	{
+		printf("Generate SM2 key error.\n");
+		goto err;
+	}
+
+	/*OUTPUT EVP PKEY*/
+	len = i2d_PrivateKey(sm2key, &out);
+	if (len <= 0)
+	{
+		printf("Output SM2 Private Key Error.\n");
+		goto err;
+	}
+
+	printf("Generated SM2 Private Key ASN1 value: [");
+	for (loop = 0; loop < len; loop++)
+		printf("%02X", out[loop] & 0xff);
+	printf("]\n");
+
+	if (out) OPENSSL_free(out);
+	out = NULL;
+
+	len = i2d_PublicKey(sm2key, &out);
+	if (len > 0)
+	{
+		printf("Generated SM2 Public Key ASN1 value: [");
+		for (loop = 0; loop < len; loop++)
+			printf("%02X", out[loop] & 0xff);
+		printf("]\n");
+	}
+
+	if (out) OPENSSL_free(out);
+	out = NULL;
+
+	/*OUTPUT X + Y + d*/
+	group = EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(sm2key));
+
+	/*Output SM2 Key*/
+	bn_priv = EC_KEY_get0_private_key(EVP_PKEY_get0_EC_KEY(sm2key));
+	//bn_pub=EC_KEY_get0_public_key((EVP_PKEY_get0_EC_KEY(sm2key)));
+	point = EC_KEY_get0_public_key(EVP_PKEY_get0_EC_KEY(sm2key));
+	pub_len = i2o_ECPublicKey(EVP_PKEY_get0_EC_KEY(sm2key), NULL);
+	if (bn_priv == NULL || point == NULL)
+	{
+		printf("EC_KEY_get0_private_key or  EC_KEY_get0_public_key Error.\n");
+		goto err;
+	}
+	pri_len = BN_num_bytes(bn_priv);
+	//pub_len = BN_num_bytes(bn_pub);
+
+	if (pri_len > *privKeyLen || pub_len > *pubKeyLen)
+	{
+		printf("Output SM2 Key Error.外送变量内存空间不足\n");
+		goto err;
+	}
+
+	//将大数转为字节数组
+	if (!BN_bn2bin(bn_priv, privKey))
+	{
+		printf("BN_bn2bin err,bn_priv\n");
+		goto err;
+	}
+	*privKeyLen = pri_len;
+	if (!i2o_ECPublicKey(EVP_PKEY_get0_EC_KEY(sm2key), &pubKey))
+	{
+		printf("i2o_ECPublicKey err\n");
+		goto err;
+	}
+	*pubKeyLen = pub_len;
+#ifdef _DEBUG
+	out = (unsigned char*)BN_bn2hex(bn_priv);
+	if (!out)
+	{
+		printf("Error Of Output SM2 Private key.\n");
+		goto err;
+	}
+
+	printf("\n              Private Key: [%s]\n", out);
+	OPENSSL_free(out);
+	out = (unsigned char*)EC_POINT_point2hex(group, EC_KEY_get0_public_key((EVP_PKEY_get0_EC_KEY(sm2key))), POINT_CONVERSION_UNCOMPRESSED, NULL);
+	if (!out)
+	{
+		printf("Error Of Output SM2 Public key.\n");
+		goto err;
+	}
+	printf("              Public Key: [%s]\n", out);
+#endif // DEBUG
+	ret = 0;
+err:
+	if (sm2key) EVP_PKEY_free(sm2key);
+	if (pctx) EVP_PKEY_CTX_free(pctx);
+	if (out) OPENSSL_free(out);
+
+	return ret;
+}
+
+
+
+
+
+//EVP RSAsign
+int rsaSign(const char* privKeyHex, const char* data, size_t dataLen, unsigned char* sign, size_t* signLen)
+{
+	int ret = -1;
+	EVP_PKEY* pkey = NULL;
+	EVP_MD_CTX* mdctx = NULL;
+	unsigned char* out = NULL;
+	size_t outlen = 0;
+	unsigned char* privKey = NULL;
+	size_t privKeyLen = 0;
+	if (!privKeyHex || !data || !sign || !signLen)
+	{
+		printf("Input Parameter Error.\n");
+		goto err;
+	}
+	privKeyLen = hex2bin(privKeyHex, privKey);
+	if (!privKey)
+	{
+		printf("Hex To Bin Error.\n");
+		goto err;
+	}
+	pkey = EVP_PKEY_new();
+	if (!pkey)
+	{
+		printf("EVP_PKEY_new Error.\n");
+		goto err;
+	}
+	//if (!EVP_PKEY_assign_RSA(pkey, d2i_RSAPrivateKey(NULL, (const unsigned char**)&privKey, privKeyLen)))
+	if (EVP_PKEY_assign_RSA(pkey, privKey))
+	{
+		printf("EVP_PKEY_assign_RSA Error.\n");
+		goto err;
+	}
+	mdctx = EVP_MD_CTX_create();
+	if (!mdctx)
+	{
+		printf("EVP_MD_CTX_create Error.\n");
+		goto err;
+	}
+	if (!EVP_SignInit_ex(mdctx, EVP_sha256(), NULL))
+	{
+		printf("EVP_SignInit_ex Error.\n");
+		goto err;
+	}
+	if (!EVP_SignUpdate(mdctx, data, dataLen))
+	{
+		printf("EVP_SignUpdate Error.\n");
+		goto err;
+	}
+	if (!EVP_SignFinal(mdctx, NULL, &outlen, pkey))
+	{
+		printf("EVP_SignFinal Error.\n");
+		goto err;
+	}
+	out = (unsigned char*)OPENSSL_malloc(outlen);
+	if (!out)
+	{
+		printf("OPENSSL_malloc Error.\n");
+		goto err;
+	}
+	if (!EVP_SignFinal(mdctx, out, &outlen, pkey))
+	{
+		printf("EVP_SignFinal Error.\n");
+		goto err;
+	}
+	if (outlen > *signLen)
+	{
+		printf("Output");
+	}
+	memcpy(sign, out, outlen);
+	*signLen = outlen;
+err:
+	if (pkey) EVP_PKEY_free(pkey);
+	if (mdctx) EVP_MD_CTX_destroy(mdctx);
+	if (out) OPENSSL_free(out);
+	if (privKey) OPENSSL_free(privKey);
+	return ret;
+}
+
+//EVP RSAverify
+int rsaVerifySign(const char* pubKeyHex, const char* data, size_t dataLen, unsigned char* sign, size_t signLen)
+{
+	int ret = -1;
+	EVP_PKEY* pkey = NULL;
+	EVP_MD_CTX* mdctx = NULL;
+	unsigned char* pubKey = NULL;
+	size_t pubKeyLen = 0;
+	if (!pubKeyHex || !data || !sign || !signLen)
+	{
+		printf("Input Parameter Error.\n");
+		goto err;
+	}
+	pubKeyLen = hex2bin(pubKeyHex, pubKey);
+	if (!pubKey)
+	{
+		printf("Hex To Bin Error.\n");
+		goto err;
+	}
+	pkey = EVP_PKEY_new();
+	if (!pkey)
+	{
+		printf("EVP_PKEY_new Error.\n");
+		goto err;
+	}
+	//if (!EVP_PKEY_assign_RSA(pkey, d2i_RSAPublicKey(NULL, (const unsigned char**)&pubKey, pubKeyLen)))
+	if (EVP_PKEY_assign_RSA(pkey, pubKey))
+	{
+		printf("EVP_PKEY_assign_RSA Error.\n");
+		goto err;
+	}
+	mdctx = EVP_MD_CTX_create();
+	if (!mdctx)
+	{
+		printf("EVP_MD_CTX_create Error.\n");
+		goto err;
+	}
+	if (!EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL))
+	{
+		printf("EVP_VerifyInit_ex Error.\n");
+		goto err;
+	}
+	if (!EVP_VerifyUpdate(mdctx, data, dataLen))
+	{
+		printf("EVP_VerifyUpdate Error.\n");
+		goto err;
+	}
+	if (EVP_VerifyFinal(mdctx, sign, signLen, pkey) != 1)
+	{
+		printf("EVP_VerifyFinal Error.\n");
+		goto err;
+	}
+	ret = 0;
+err:
+	if (pkey) EVP_PKEY_free(pkey);
+	if (mdctx) EVP_MD_CTX_destroy(mdctx);
+	if (pubKey) OPENSSL_free(pubKey);
+	return ret;
+}
+
+#include "openssl/rsa.h"
+#include <openssl/pkcs7.h>
+//EVP RSAGenKey
+int rsaGenKey(size_t bits, unsigned char* privKey, size_t* privKeyLen, unsigned char* pubKey, size_t* pubKeyLen)
+{
+	int ret = -1;
+	RSA* rsa = NULL;
+	BIGNUM* bne = NULL;
+	EVP_PKEY* pkey = NULL;
+	BIO* bio = NULL;
+	unsigned char* out = NULL;
+	size_t outlen = 0;
+	if (!privKey || !privKeyLen || !pubKey || !pubKeyLen)
+	{
+		printf("Input Parameter Error.\n");
+		goto err;
+	}
+	bne = BN_new();
+	if (!bne)
+	{
+		printf("BN_new Error.\n");
+		goto err;
+	}
+	if (!BN_set_word(bne, RSA_F4))
+	{
+		printf("BN_set_word Error.\n");
+		goto err;
+	}
+	rsa = RSA_new();
+	if (!rsa)
+	{
+		printf("RSA_new Error.\n");
+		goto err;
+	}
+	if (!RSA_generate_key_ex(rsa, bits, bne, NULL))
+	{
+		printf("RSA_generate_key_ex Error.\n");
+		goto err;
+	}
+	pkey = EVP_PKEY_new();
+	if (!pkey)
+	{
+		printf("EVP_PKEY_new Error.\n");
+		goto err;
+	}
+	if (!EVP_PKEY_assign_RSA(pkey, rsa))
+	{
+		printf("EVP_PKEY_assign_RSA Error.\n");
+		goto err;
+	}
+	bio = BIO_new(BIO_s_mem());
+	if (!bio)
+	{
+		printf("BIO_new Error.\n");
+		goto err;
+	}
+	//pKey转换字节bio对象
+	if (!i2d_PrivateKey_bio(bio, pkey))
+	{
+		printf("i2d_PrivateKey_bio Error.\n");
+		goto err;
+	}
+	outlen = BIO_pending(bio);
+	out = (unsigned char*)OPENSSL_malloc(outlen);
+	if (!out)
+	{
+		printf("OPENSSL_malloc Error.\n");
+		goto err;
+	}
+	if (BIO_read(bio, out, outlen) != outlen)
+	{
+		printf("BIO_read Error.\n");
+		goto err;
+	}
+	if (outlen > *privKeyLen)
+	{
+		printf("Output");
+	}
+	memcpy(privKey, out, outlen);
+	*privKeyLen = outlen;
+	ret = 0;
+err:
+	if (bne) BN_free(bne);
+	if (rsa) RSA_free(rsa);
+	if (pkey) EVP_PKEY_free(pkey);
+	if (bio) BIO_free(bio);
+	if (out) OPENSSL_free(out);
+	return ret;
+}
+
+/*
+SM2 加密数据将会产生三个值:
+#C1 为随机产生的公钥
+#C2 为密文，与明文长度等长
+#C3 为 SM3 算法对明文数计算得到消息摘要，长度固定为 256 位
+
+0009-2012 C1|C3|C2
+*/
+int sm2Encrypt(const char* pubKeyHex, const char* data, size_t dataLen, unsigned char* cipher, size_t* cipherLen)
+{
+	int ret = -1;
+	EVP_PKEY* sm2key = NULL;
+	EC_GROUP* sm2group = NULL;
+	EVP_PKEY_CTX* pctx = NULL;
+	size_t outlen;
+	unsigned char* out = NULL;
+	int retval;
+	EC_KEY* tmp = NULL;
+	if (!pubKeyHex || !data || !dataLen || !cipher || !cipherLen)
+	{
+		printf("Input Parameter Error.\n");
+		goto err;
+	}
+
+	sm2group = EC_GROUP_new_by_curve_name(NID_sm2);
+	if (!sm2group)
+	{
+		goto err;
+	}
+
+	sm2key = EVP_PKEY_new();
+	if (!sm2key)
+	{
+		printf("Create EVP_PKEY Object Error.\n");
+		goto err;
+	}
+
+	/*Encrypt*/
+	tmp = CalculatePubKey((const EC_GROUP*)sm2group, pubKeyHex);
+
+	if (!tmp)
+	{
+		printf("Error Of Calculate SM2 Public Key.\n");
+		goto err;
+	}
+
+	EVP_PKEY_assign_EC_KEY(sm2key, tmp);
+
+	if ((EVP_PKEY_set_alias_type(sm2key, EVP_PKEY_SM2)) != 1)
+	{
+		printf("EVP_PKEY_set_alias_type failed.\n");
+		goto err;
+	}
+
+	pctx = EVP_PKEY_CTX_new(sm2key, NULL);
+	if (!pctx)
+	{
+		printf("Create EVP_PKEY_CTX Error.\n");
+		goto err;
+	}
+
+	if (EVP_PKEY_encrypt_init(pctx) <= 0)
+	{
+		printf("Error Of EVP_PKEY_encrypt_init.\n");
+		goto err;
+	}
+
+	/*Set SM2 Encrypt EVP_MD. If it not set, SM2 default is EVP_sm3(), Other curve default is sha1*/
+	EVP_PKEY_CTX_ctrl(pctx, -1, EVP_PKEY_OP_TYPE_CRYPT, EVP_PKEY_CTRL_MD, 0, (void*)EVP_sm3());
+
+	/*Set sm2 encdata format, 0 for ASN1(default), 1 for C1C3C2*/
+	/*EVP_PKEY_CTX_set_sm2_encdata_format(ctx, 1);*/
+
+	//EVP_PKEY_CTX_set_sm2_encdata_format(pctx, 1);
+
+	/*Calculate Cipher Text Length*/
+	if (EVP_PKEY_encrypt(pctx, NULL, &outlen, (const unsigned char*)data, dataLen) < 0)
+	{
+		printf("Calculate SM2 Cipher text length error.\n");
+		goto err;
+	}
+
+	out = OPENSSL_malloc(outlen);
+	if (!out)
+	{
+		printf("Error Of Alloc memory.\n");
+		goto err;
+	}
+
+	if (EVP_PKEY_encrypt(pctx, out, &outlen, (const unsigned char*)data, dataLen) < 0)
+	{
+		printf("EVP_PKEY_encrypt error.\n");
+		goto err;
+	}
+	if (outlen > *cipherLen)
+	{
+		printf("Output Buffer Too Small.\n");
+		goto err;
+	}
+	memcpy(cipher, out, outlen);
+	*cipherLen = outlen;
+	ret = 0;
+	/*OK, output cipher*/
+	printf("SM2 Encrypt Cipher Text:\n\tLength: [%ld]\n\tContent: [", outlen);
+	for (retval = 0; retval < outlen; retval++)
+		printf("%02X", out[retval] & 0xff);
+	printf("]\n");
+err:
+	if (sm2group) EC_GROUP_free(sm2group);
+	if (sm2key) EVP_PKEY_free(sm2key);
+	if (pctx) EVP_PKEY_CTX_free(pctx);
+	if (out) OPENSSL_free(out);
+
+	return ret;
+}
+
+
+
+//EVP sm2Decrypt
+int sm2Decrypt(const char* privKeyHex, unsigned char* cipher, size_t cipherLen, unsigned char* data, size_t* dataLen)
+{
+	int ret = -1;
+	EVP_PKEY* sm2key = NULL;
+	EC_GROUP* sm2group = NULL;
+	EVP_PKEY_CTX* pctx = NULL;
+	size_t outlen;
+	unsigned char* out = NULL;
+
+	EC_KEY* tmp = NULL;
+	unsigned char* in = cipher;
+	size_t inlen = cipherLen;
+	if (!privKeyHex || !data || !dataLen || !cipher || !cipherLen)
+	{
+		printf("Input Parameter Error.\n");
+		goto err;
+	}
+
+	sm2group = EC_GROUP_new_by_curve_name(NID_sm2);
+	if (!sm2group)
+	{
+		goto err;
+	}
+	sm2key = EVP_PKEY_new();
+	if (!sm2key)
+	{
+		printf("Create EVP_PKEY Object Error.\n");
+		goto err;
+	}
+	/*Decrypt*/
+	tmp = CalculateKey((const EC_GROUP*)sm2group, privKeyHex);
+	if (!tmp)
+	{
+		printf("Error Of Calculate SM2 Private Key.\n");
+		goto err;
+	}
+
+	EVP_PKEY_assign_EC_KEY(sm2key, tmp);
+
+	if ((EVP_PKEY_set_alias_type(sm2key, EVP_PKEY_SM2)) != 1)
+	{
+		printf("EVP_PKEY_set_alias_type failed.\n");
+		goto err;
+	}
+
+
+	pctx = EVP_PKEY_CTX_new(sm2key, NULL);
+	if (!pctx)
+	{
+		printf("Create EVP_PKEY_CTX Error.\n");
+		goto err;
+	}
+
+	if (EVP_PKEY_decrypt_init(pctx) <= 0)
+	{
+		printf("Error Of EVP_PKEY_encrypt_init.\n");
+		goto err;
+	}
+
+	/*Set SM2 Encrypt EVP_MD. If it not set, SM2 default is EVP_sm3(), Other curve default is sha1*/
+	EVP_PKEY_CTX_ctrl(pctx, -1, EVP_PKEY_OP_TYPE_CRYPT, EVP_PKEY_CTRL_MD, 0, (void*)EVP_sm3());
+
+	/*in = OPENSSL_malloc(inlen);
+	if (!in)
+	{
+		printf("Error Of Alloc Memory.\n");
+		goto err;
+	}*/
+
+	//hex2bin(cipher, inlen * 2, in);
+	//b2s(argv[3], in);
+
+	/*Set sm2 encdata format, 0 for ASN1(default), 1 for C1C3C2*/
+	/*EVP_PKEY_CTX_set_sm2_encdata_format(ctx, 1);*/
+
+	/*Calculate plain text length*/
+	if (EVP_PKEY_decrypt(pctx, NULL, &outlen, (const unsigned char*)in, inlen) < 0)
+	{
+		OPENSSL_free(in);
+		printf("Calculate SM2 plain text length error.\n");
+		goto err;
+	}
+
+	out = OPENSSL_malloc(outlen);
+	if (!out)
+	{
+		OPENSSL_free(in);
+		printf("Error Of Alloc Memory.\n");
+		goto err;
+	}
+
+	memset(out, 0, outlen);
+	if (EVP_PKEY_decrypt(pctx, out, &outlen, (const unsigned char*)in, inlen) < 0)
+	{
+		OPENSSL_free(in);
+		printf("Error Of EVP_PKEY_decrypt.\n");
+		/*Your Can't get error detail*/
+		goto err;
+	}
+
+	if (outlen > *dataLen)
+	{
+		printf("Output Buffer Too Small.\n");
+		goto err;
+	}
+	memcpy(data, out, outlen);
+	*dataLen = outlen;
+	ret = 0;
+	printf("SM2 Decrypt plain Text:\n\tLength: [%ld]\n\tContent: [%s]\n", outlen, (char*)out);
+	/*for (retval = 0; retval < outlen; retval++)
+		printf("%02X", out[retval] & 0xff);
+	printf("]\n");*/
+
+err:
+	if (sm2group) EC_GROUP_free(sm2group);
+	if (sm2key) EVP_PKEY_free(sm2key);
+	if (pctx) EVP_PKEY_CTX_free(pctx);
+	if (out) OPENSSL_free(out);
+
+	return ret;
+}
+
+
+
+
+
+// 生成SM2密钥对
+EVP_PKEY* generate_sm2_keypair()
+{
+	EVP_PKEY* pkey = EVP_PKEY_new();
+	EC_KEY* ec_key = EC_KEY_new_by_curve_name(NID_sm2);
+	EC_KEY_generate_key(ec_key);
+	EVP_PKEY_assign_EC_KEY(pkey, ec_key);
+	return pkey;
+}
+void sm3(uint8_t* data, uint32_t dataLen, uint8_t* digest, uint32_t* digest_len)
+{
+	int ret = EXIT_FAILURE;
+	EVP_MD_CTX* mdctx = NULL;
+	const EVP_MD* md = NULL;
+
+
+	// 选择 SM3 算法
+	md = EVP_sm3();
+	if (md == NULL) {
+		fprintf(stderr, "EVP_sm3() failed\n");
+		goto cleanup;
+	}
+
+	// 创建 MD 上下文对象
+	mdctx = EVP_MD_CTX_new();
+	if (mdctx == NULL) {
+		fprintf(stderr, "EVP_MD_CTX_new() failed\n");
+		goto cleanup;
+	}
+
+	// 初始化 MD 上下文对象
+	if (EVP_DigestInit_ex(mdctx, md, NULL) != 1) {
+		fprintf(stderr, "EVP_DigestInit_ex() failed\n");
+		goto cleanup;
+	}
+
+	// 输入待计算的数据
+	if (EVP_DigestUpdate(mdctx, data, dataLen) != 1) {
+		fprintf(stderr, "EVP_DigestUpdate() failed\n");
+		goto cleanup;
+	}
+
+	// 完成摘要计算并输出结果
+	if (EVP_DigestFinal_ex(mdctx, digest, &digest_len) != 1) {
+		fprintf(stderr, "EVP_DigestFinal_ex() failed\n");
+		goto cleanup;
+	}
+
+	printf("SM3 digest: ");
+	for (size_t i = 0; i < digest_len; i++) {
+		printf("%02x", digest[i]);
+	}
+	printf("\n");
+
+	ret = EXIT_SUCCESS;
+
+cleanup:
+	// 释放资源
+	EVP_MD_CTX_free(mdctx);
+	return ret;
+}
+// 对数据进行P7签名
+static PKCS7* p7_sign_data(const unsigned char* data, size_t data_len, EVP_PKEY* pkey, X509* cert, size_t flags)
+{
+	PKCS7* p7 = PKCS7_new();
+	//PKCS7_set_type(p7, NID_pkcs7_sm2_signed);
+	//PKCS7_add_certificate(p7, cert);
+	STACK_OF(X509)* certs = sk_X509_new_null();
+	sk_X509_push(certs, cert);
+	//PKCS7_add_certificate(p7, cert);
+	//PKCS7_add_certificate(p7, cert);
+	//PKCS7_add_signer(p7, pkey, cert, EVP_sm3());
+	//PKCS7_content_new(p7, NID_pkcs7_data);
+	//PKCS7_set_detached(p7, 1);
+	//uint8_t digest[32];
+	//uint32_t digest_len;
+	//sm3(data,data_len,digest,&digest_len);
+	////BIO* in = BIO_new_mem_buf((void*)digest, 32);
+	//uint8_t dgst[32];
+	//int dgstLen = BIO_read(in, dgst, 32);
+	BIO* in = BIO_new_mem_buf(data, data_len);
+	EVP_PKEY_base_id(pkey);
+	//int flags = PKCS7_DETACHED | PKCS7_NOCERTS | PKCS7_NOSMIMECAP; //| PKCS7_STREAM | PKCS7_NOCHAIN  | PKCS7_NOSMIMECAP | PKCS7_NOSMIMECAP:不包含加密算法能力集
+
+	p7 = PKCS7_sign(cert, pkey, NULL, in, flags);
+	if (!p7)
+		printf("error\n");
+
+
+#ifdef _DEBUG
+	//将p7转为PEM
+	BIO* out = BIO_new(BIO_s_mem());
+	PEM_write_bio_PKCS7(out, p7);
+	char* p7_pem = NULL;
+	int p7_pem_len = BIO_get_mem_data(out, &p7_pem);
+	p7_pem[p7_pem_len] = 0;
+	printf("p7_pem_len = %d\n", p7_pem_len);
+	printf("p7_pem = %s\n", p7_pem);
+	BIO_free(out);
+#endif // DEBUG	
+
+err:
+
+	if (in)BIO_free(in);
+	if (certs)sk_X509_free(certs);
+	return p7;
+}
+//#include <openssl/x509.h>
+
+int sm2SignData(const char* privKeyHex, unsigned char* data, size_t dataLen, size_t flags, unsigned char* pemCert, size_t pemCertLen, unsigned char* signData, size_t* signDataLen)
+{
+	int ret = -1;
+	EVP_PKEY* sm2key = NULL;
+	EC_GROUP* sm2group = NULL;
+	EVP_PKEY_CTX* pctx = NULL;
+	size_t outlen;
+	unsigned char* out = NULL;
+	int retval;
+	EC_KEY* tmp = NULL;
+	X509* cert = NULL;
+	BIO* certBio = NULL;
+	PKCS7* p7 = NULL;
+	unsigned char* buf=NULL;
+	int len;
+	//const char* data = "abc";
+	//int data_len= strlen(data);
+	if (!privKeyHex || !data || dataLen <= 0 || !pemCert || pemCertLen <= 0 || !signData || !signDataLen || *signDataLen <= 0)
+	{
+		ret = 1;
+		printf("Input Parameter Error.\n");
+		goto err;
+	}
+
+	sm2group = EC_GROUP_new_by_curve_name(NID_sm2);
+	if (!sm2group)
+	{
+		ret = 2;
+		goto err;
+	}
+	sm2key = EVP_PKEY_new();
+	if (!sm2key)
+	{
+		ret = 3;
+		printf("Create EVP_PKEY Object Error.\n");
+		goto err;
+	}
+	/*Decrypt*/
+	tmp = CalculateKey((const EC_GROUP*)sm2group, privKeyHex);
+	if (!tmp)
+	{
+		ret = 4;
+		printf("Error Of Calculate SM2 Private Key.\n");
+		goto err;
+	}
+
+	EVP_PKEY_assign_EC_KEY(sm2key, tmp);
+
+	if ((EVP_PKEY_set_alias_type(sm2key, EVP_PKEY_SM2)) != 1)
+	{
+		ret = 5;
+		printf("EVP_PKEY_set_alias_type failed.\n");
+		goto err;
+	}
+
+	//使用BIO读取本地证书和密钥
+	/*BIO* keyBio = BIO_new_file("./certs/SS.key", "r");
+	BIO* certBio = BIO_new_file("./certs/SS.crt", "r");
+	if (!keyBio ||!certBio)
+	{
+		printf("read file error \n");
+	}*/
+	//EVP读取SM2密钥
+	//pkey = PEM_read_bio_PrivateKey(keyBio, NULL, NULL, NULL);
+	certBio = BIO_new_mem_buf(pemCert, pemCertLen);
+	cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
+	if (!certBio || !cert)
+	{
+		ret = 6;
+		printf("PEM_read_bio_X509 failed.\n");
+		goto err;
+	}
+
+
+	// 对数据进行P7签名
+	p7 = p7_sign_data(data, dataLen, sm2key, cert, flags);
+	if (!p7)
+	{
+		ret = 7;
+		printf("p7_sign_data failed.\n");
+		goto err;
+	}
+	ret = 0;
+
+	len = i2d_PKCS7(p7, &buf); // 编码 PKCS7 对象为 DER 格式
+	// 现在 buf 中包含编码后的数据，长度为 len
+	if (len>*signDataLen)
+	{
+		ret = 8;
+		printf("signData buffer is too small.\n");
+		goto err;
+	}
+	memcpy(signData, buf, len);
+	*signDataLen = len;
+
+#ifdef _DEBUG
+	// 保存P7签名数据到文件
+	FILE* fp = fopen("signed.p7", "wb");
+	i2d_PKCS7_fp(fp, p7);
+	fclose(fp);
+#endif // DEBUG
+
+err:
+	// 释放资源
+	if (certBio)BIO_free(certBio);
+	if (p7)PKCS7_free(p7);
+	if (cert)X509_free(cert);
+	if (sm2group) EC_GROUP_free(sm2group);
+	if (sm2key) EVP_PKEY_free(sm2key);
+	if (pctx) EVP_PKEY_CTX_free(pctx);
+	if(buf)OPENSSL_free(buf); // 释放临时缓冲区
+	return ret;
+}
+
+int sm2VerifySignData(unsigned char* data, size_t dataLen, size_t flags, unsigned char* signCert, size_t signCertLen, unsigned char* signData, size_t signDataLen)
+{
+	int ret = -1;
+	//读取本地文件P7签名文件p7.byte
+	STACK_OF(X509)* certs = NULL; // 证书链，使用 sk_X509_push 添加证书
+	X509_STORE* st = NULL;  // 证书存储，使用 X509_STORE_add_cert 添加证书
+	BIO* p7Bio = NULL;
+	PKCS7* p7 = NULL;
+	//读取原文
+	BIO* dataBio = NULL;//BIO_new_file("data.txt", "r");
+	//读取本地证书
+	BIO* caCertBio = NULL;// BIO_new_file("./certs/CA.crt", "r");
+	BIO* certBio = NULL;//BIO_new_file("./certs/SS.crt", "r");
+
+	X509* caCert = NULL;// PEM_read_bio_X509(caCertBio, NULL, 0, NULL);//d2i_X509_bio(caCertBio, NULL);
+	//读取DER编码的证书，certBio
+	X509* cert = NULL;// PEM_read_bio_X509(certBio, NULL, 0, NULL);//d2i_X509_bio(certBio, NULL);
+	BIO* out_bio = NULL;
+	do
+	{
+		//判断外送参数是否为空
+		if (!data || dataLen <= 0 || !signCert || signCertLen <= 0 || !signData || signDataLen <= 0)
+		{
+			printf("Input Parameter Error.\n");
+			ret = 1;
+			break;
+		}
+		//读取data到dataBio
+		dataBio = BIO_new_mem_buf(data, dataLen);
+		if (!dataBio)
+		{
+			printf("BIO_new_mem_buf err\n");
+			ret = 3;
+			break;
+		}
+		//将signData转为BIO	
+		p7Bio = BIO_new_mem_buf(signData, signDataLen);
+		if (!p7Bio)
+		{
+			printf("BIO_new_mem_buf err\n");
+			ret = 3;
+			break;
+		}
+
+
+		//判断signData是DER还是PEM格式
+		if (signData[0] == '-' && signData[1] == '-')
+		{
+			//PEM格式
+			p7 = PEM_read_bio_PKCS7(p7Bio, NULL, NULL, NULL);
+			if (!p7)
+			{
+				ret = 4;
+				printf("PEM_read_bio_PKCS7 err\n");
+				break;
+			}
+		}
+		else
+		{
+			//DER格式
+			p7 = d2i_PKCS7_bio(p7Bio, NULL);
+			if (!p7)
+			{
+				ret = 4;
+				printf("d2i_PKCS7_bio err\n");
+				break;
+			}
+		}
+		//读取pemCert到cert
+		certBio = BIO_new_mem_buf(signCert, signCertLen);
+		if (!certBio)
+		{
+			ret = 5;
+			printf("BIO_new_mem_buf err\n");
+			break;
+		}
+		if (signCert[0] == '-' && signCert[1] == '-')
+		{
+			cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
+			if (!cert)
+			{
+				ret = 6;
+				printf("PEM_read_bio_X509 err\n");
+				break;
+			}
+		}
+		else
+		{
+			cert = d2i_X509_bio(certBio, NULL);
+			if (!cert)
+			{
+				ret = 6;
+				printf("d2i_X509_bio err\n");
+				break;
+			}
+		}
+		
+
+		certs = sk_X509_new_null();
+		if (!certs)
+		{
+			ret = 7;
+			printf("sk_X509_new_null err\n");
+			break;
+		}
+		st = X509_STORE_new();
+		if (!st)
+		{
+			ret = 8;
+			printf("sk_X509_new_null err\n");
+			break;
+		}
+		sk_X509_push(certs, cert);
+#ifdef _DEBUG
+		caCertBio = BIO_new_file("./certs/CA.crt", "r");//BIO_new_file("./certs/CA.crt", "r");
+		if (!caCertBio)
+		{
+			ret = 9;
+			printf("BIO_new_file err\n");
+			break;
+		}
+		caCert = PEM_read_bio_X509(caCertBio, NULL, 0, NULL);
+
+
+		BIO* caRootCertBio = BIO_new_file("./certs/root.cer", "r");//BIO_new_file("./certs/CA.crt", "r");
+		if (!caRootCertBio)
+		{
+			ret = 9;
+			printf("BIO_new_file err\n");
+			break;
+		}
+		X509* caRootCert = PEM_read_bio_X509(caRootCertBio, NULL, 0, NULL);
+		if (caRootCert)
+		{
+			if (!X509_STORE_add_cert(st, caRootCert))
+			{
+				ret = 9;
+				printf("X509_STORE_add_cert err\n");
+				break;
+			}
+		}
+
+#endif // _DEBUG		
+		if (caCert)
+		{
+			if (!X509_STORE_add_cert(st, caCert))
+			{
+				ret = 9;
+				printf("X509_STORE_add_cert err\n");
+				break;
+			}
+		}	
+		else
+		{
+			if (st)X509_STORE_free(st); 
+			st = NULL;
+		}
+
+		//验证P7签名	
+		out_bio = BIO_new(BIO_s_mem());
+		if (p7->d.sign->cert == NULL)
+		{
+			//p7->d.sign->cert = certs;
+		}
+		ret = PKCS7_verify(p7, certs, st, dataBio, out_bio, flags);
+		if (!ret)
+		{
+			getOpensslErrMsg();
+			break;
+		}
+#ifdef _DEBUG
+		printf("verify ret = %d\n", ret);
+		//打印out_bio里面的数据，输出编码为16进制
+		BUF_MEM* mem = NULL;
+		BIO_get_mem_ptr(out_bio, &mem);
+		for (int i = 0; i < mem->length; i++)
+		{
+			printf("%02x ", mem->data[i]);
+		}
+		printf("\n");
+		
+#endif // _DEBUG
+		ret = 0;
+	} while (0);
+	
+	//释放资源
+	if (dataBio)BIO_free(dataBio);
+	if (caCertBio)BIO_free(caCertBio);
+	if (certBio)BIO_free(certBio);
+	if (out_bio)BIO_free(out_bio);
+	if (certs)sk_X509_free(certs);
+	if (st)X509_STORE_free(st);
+	if (cert)X509_free(cert);
+	if (caCert)X509_free(caCert);
+	if (p7)PKCS7_free(p7);
+
+
+	return ret;
+}
+
+
+void testP7()
+{
+	int ret = 0;
+	const char* privKeyHex = "363ffcaa72c0c728e9b2c5d16f840258edb98d803b90395c4e77c44a2c7090fa";
+	const char* pubKeyHex = "04e20234542883f1f007c1d008a5251c537e64aae2c456d4f2c44c1dfc15be1e19382e05792fba09d68e32e85cd8362d6233ccabba5a5e5426983747766921c35e";
+	const char* data = "abc";
+	size_t dataLen = strlen(data);
+	unsigned char signData[4096] = { 0 };
+	size_t signDataLen = 4096;
+	unsigned char cert[4096] = { 0 };
+	size_t certLen = 4096;
+	int flags = PKCS7_NOSMIMECAP;// | PKCS7_NOATTR; //|  PKCS7_DETACHED  | PKCS7_NOCERTS| PKCS7_STREAM | PKCS7_NOCHAIN  | PKCS7_NOSMIMECAP | PKCS7_NOSMIMECAP:不包含加密算法能力集
+	FILE* fp = fopen("./certs/SS.crt", "rb");
+	certLen = fread(cert, 1, 4096, fp);
+	fclose(fp);
+	//smime  -sign -in data.txt -outform der -signer "E:\vs2022workspace\testOpenssl\testOpenssl\certs\SS.crt" -inkey  "E:\vs2022workspace\testOpenssl\testOpenssl\certs\SS.key" -out signature.p7s
+	//SM2 P7签名
+	ret = sm2SignData(privKeyHex, data, dataLen, flags, cert, certLen, signData, &signDataLen);
+	if (ret)
+	{
+		printf("sm2SignData err,ret:%08x\n", ret);
+		return;
+	}
+	flags = 0;// PKCS7_NOVERIFY;// PKCS7_DETACHED | PKCS7_NOCHAIN | PKCS7_NOSMIMECAP; //| PKCS7_STREAM
+	//flags = PKCS7_NOCHAIN | PKCS7_NOCRL;
+	//SM2 P7验签
+	ret = sm2VerifySignData(data, dataLen, flags, cert, certLen, signData, signDataLen);
+	if (ret)
+	{
+		printf("sm2VerifySignData err,ret:%08x\n", ret);
+		return;
+	}
+
+	//
+	fp = fopen("F:/桌面/030000001213.cer", "rb");
+	certLen = fread(cert, 1, 4096, fp);
+	fclose(fp);
+
+	char dataStr[4096] = { 0 };
+	int dataStrLen = 4096;
+	fp = fopen("data.txt", "rb");
+	dataStrLen = fread(dataStr, 1, 4096, fp);
+	fclose(fp);
+	fp = fopen("F:/桌面/p7byte1", "rb");
+	signDataLen = fread(signData, 1, 4096, fp);
+	fclose(fp);
+	//SM2 P7验签
+	
+	ret = sm2VerifySignData(dataStr, dataStrLen, flags, cert, certLen, signData, signDataLen);
+	if (ret)
+	{
+		printf("sm2VerifySignData err,ret:%08x\n", ret);
+		return;
+	}
+
+}
+
+int main(int argc, char* argv[])
+{
+	ERR_load_ERR_strings();
+	ERR_load_crypto_strings();
+	//-s 127.0.0.1:4433 --gmssl --verify -ca ./certs/CA.crt
+	//testVerifyP7();
+	testP7();
+	//sm2SignData();
+	int ret = 0;
+	const char* privKeyHex = "b82282531fc2ba3598a18b390dae160e0653e49676f2a570eeebcd97a8fa0b4f";
+	const char* pubKeyHex = "042e953b399f27ac62e74fb4f54db3afbaa255d0a2f0cbe906f108a8856c1217a39a22599cf1bdd21c7da57025a1d5dfbff9c6dc42a17a1716cf3867a03bf62069";
+	const char* data = "abc";
+	size_t dataLen = strlen(data);
+	unsigned char sign[128] = { 0 };
+	size_t signLen = 128;
+
+	unsigned char privKey[64] = { 0 };
+	size_t privKeyLen = 64;
+	unsigned char pubKey[65] = { 0 };
+	size_t pubKeyLen = 65;
+
+
+	unsigned char enData[512] = { 0 };
+	size_t enDataLen = 512;
+
+	unsigned char deData[512] = { 0 };
+	size_t deDataLen = 512;
+
+
+
+	//生成SM2密钥  
+	ret = sm2GenKey(privKey, &privKeyLen, pubKey, &pubKeyLen);
+
+	//私钥二进制转十六进制字符串
+	privKeyHex = bin2hex(privKey, privKeyLen);
+
+	pubKeyHex = bin2hex(pubKey, pubKeyLen);
+
+
+	ret = sm2Encrypt(pubKeyHex, data, dataLen, enData, &enDataLen);
+
+	//ret = sm2Decrypt(privKeyHex, enData, enDataLen, deData, &deDataLen);
+
+	ret = sm2Sign(privKeyHex, data, dataLen, sign, &signLen);
+
+	ret = sm2VerifySign(pubKeyHex, data, dataLen, sign, signLen);
+
+	OPENSSL_free(privKeyHex);
+	OPENSSL_free(pubKeyHex);
+
+	system("pause");
+}
+
+/*实现一个基于openssl 的SKF的引擎*/
+
+

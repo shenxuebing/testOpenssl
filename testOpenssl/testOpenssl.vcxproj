@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{3d7df87f-74e8-43a7-98ce-f506a3ab1816}</ProjectGuid>
+    <RootNamespace>testOpenssl</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>E:\vs2022workspace\TASSL\TASSL-1.1.1;E:\vs2022workspace\TASSL\TASSL-1.1.1\include;$(IncludePath)</IncludePath>
+    <LibraryPath>E:\vs2022workspace\TASSL\TASSL-1.1.1;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <UndefinePreprocessorDefinitions>
+      </UndefinePreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\apps.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\app_rand.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\asn1pars.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\bf_prefix.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ca.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ciphers.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\cms.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\crl.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\crl2p7.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\dgst.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\dhparam.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\dsa.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\dsaparam.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ec.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ecparam.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\enc.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\engine.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\errstr.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\gendsa.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\genpkey.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\genrsa.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\nseq.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ocsp.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\openssl.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\opt.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\passwd.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkcs12.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkcs7.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkcs8.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkey.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkeyparam.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkeyutl.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\prime.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\rand.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\rehash.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\req.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\rsa.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\rsautl.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\sess_id.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\smime.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\speed.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\spkac.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\srp.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\storeutl.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_cb.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_client.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_server.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_socket.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_time.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ts.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\verify.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\version.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\vms_decc_argv.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\vms_decc_init.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\vms_term_sock.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\win32_init.c" />
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\x509.c" />
+    <ClCompile Include="sslClient.c" />
+    <ClCompile Include="testOpenssl.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\apps.h" />
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\progs.h" />
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\s_apps.h" />
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\testdsa.h" />
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\testrsa.h" />
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\timeouts.h" />
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\vms_term_sock.h" />
+    <ClInclude Include="certIndex.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="..\..\TASSL\TASSL-1.1.1\apps\openssl.res" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

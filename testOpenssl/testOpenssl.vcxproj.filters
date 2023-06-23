@@ -1,0 +1,228 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="源文件\app">
+      <UniqueIdentifier>{57bc731b-819e-490b-bbe2-b76fb717b7bd}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="testOpenssl.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\app_rand.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\apps.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\asn1pars.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\bf_prefix.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ca.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ciphers.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\cms.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\crl.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\crl2p7.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\dgst.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\dhparam.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\dsa.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\dsaparam.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ec.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ecparam.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\enc.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\engine.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\errstr.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\gendsa.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\genpkey.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\genrsa.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\nseq.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ocsp.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\openssl.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\opt.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\passwd.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkcs7.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkcs8.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkcs12.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkey.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkeyparam.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\pkeyutl.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\prime.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\rand.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\rehash.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\req.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\rsa.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\rsautl.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_cb.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_client.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_server.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_socket.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\s_time.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\sess_id.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\smime.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\speed.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\spkac.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\srp.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="sslClient.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\storeutl.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\ts.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\verify.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\version.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\vms_decc_argv.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\vms_decc_init.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\vms_term_sock.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\win32_init.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\TASSL\TASSL-1.1.1\apps\x509.c">
+      <Filter>源文件\app</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\apps.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\progs.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\s_apps.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\testdsa.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\testrsa.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\timeouts.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\TASSL\TASSL-1.1.1\apps\vms_term_sock.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="certIndex.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="..\..\TASSL\TASSL-1.1.1\apps\openssl.res" />
+  </ItemGroup>
+</Project>
