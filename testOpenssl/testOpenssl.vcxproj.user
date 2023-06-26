@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LocalDebuggerCommandArguments>smime -verify -inform DER -in signed.p7 -content data.txt -CAfile ./certs/CA.crt</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>x509 -in ./certs/_.csdn.net.crt -text -noout</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

@@ -2850,6 +2850,7 @@ int rsaVerifySignData(unsigned char* data, size_t dataLen, size_t flags, unsigne
 }
 void testP7()
 {
+	//smime -verify -inform DER -in signed.p7 -content data.txt -CAfile ./certs/CA.crt
 	int ret = 0;
 	const char* privKeyHex = "363ffcaa72c0c728e9b2c5d16f840258edb98d803b90395c4e77c44a2c7090fa";
 	const char* pubKeyHex = "04e20234542883f1f007c1d008a5251c537e64aae2c456d4f2c44c1dfc15be1e19382e05792fba09d68e32e85cd8362d6233ccabba5a5e5426983747766921c35e";
@@ -3247,6 +3248,8 @@ void testAsn1()
 	return;
 }
 #include "certIndex.h"
+#include <openssl/x509v3.h>
+
 int long2uchar(long num, unsigned char* buf, int len)
 {
 	int i;
@@ -3256,14 +3259,16 @@ int long2uchar(long num, unsigned char* buf, int len)
 	}
 	return len;
 }
+
 //根据不同的索引号，解析外送的DER、PEM格式的证书
-static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* iInfo, unsigned char* info, size_t* infoLen)
+//infoFlag:0:info为普通数据	1：info为DER编码数据	2：iInfo数据，即unsigned int 数据
+static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* iInfo, unsigned char* info, size_t* infoLen,size_t* infoFlag)
 {
 	int ret = 0;
 	X509* x509Cert = NULL;
 	unsigned char* der = NULL;
 	unsigned char* buf = NULL;
-	int derlen;
+	int derlen=0;
 	do
 	{
 		//检查参数
@@ -3336,6 +3341,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				DEBUG_PRINT("long2uchar err\n");
 				break;
 			}
+			*infoFlag = 2;
 			break;
 		}
 		
@@ -3345,17 +3351,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			serialNumber = X509_get_serialNumber(x509Cert);
 			if (!serialNumber)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_serialNumber err\n");
 				break;
 			}
 			derlen = i2d_ASN1_INTEGER(serialNumber, &buf);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("i2d_ASN1_INTEGER err\n");
 				break;
 			}
+			*infoFlag = 0;
 		}
 		case DEC_INDEX_INT_SIGNALGID: //int 值签名算法
 		{
@@ -3365,19 +3372,20 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			sigAlg = X509_get0_tbs_sigalg(x509Cert);
 			if (!sigAlg)
 			{
-				ret = 2;
+				ret = index;
 				DEBUG_PRINT("X509_get0_tbs_sigalg err\n");
 				break;
 			}
 			algorithm_name = OBJ_nid2ln(OBJ_obj2nid(sigAlg->algorithm));
 			if (!algorithm_name)
 			{
-				ret = 2;
+				ret = index;
 				DEBUG_PRINT("OBJ_nid2ln err\n");
 				break;
 			}
 			*iInfo = OBJ_obj2nid(sigAlg->algorithm);
 			derlen = 0; //无需复制
+			*infoFlag = 2;
 			break;
 		}
 		
@@ -3389,19 +3397,20 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			sigAlg = X509_get0_tbs_sigalg(x509Cert);
 			if (!sigAlg)
 			{
-				ret = 2;
+				ret = index;
 				DEBUG_PRINT("X509_get0_tbs_sigalg err\n");
 				break;
 			}
 			algorithm_name = OBJ_nid2ln(OBJ_obj2nid(sigAlg->algorithm));
 			if (!algorithm_name)
 			{
-				ret = 2;
+				ret = index;
 				DEBUG_PRINT("OBJ_nid2ln err\n");
 				break;
 			}
 			memcpy(buf,algorithm_name,strlen(algorithm_name));
 			derlen = strlen(algorithm_name);
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_COUNTRYNAME: //颁发者国家名称
@@ -3410,18 +3419,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_countryName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
-
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_ORGANIZATIONNAME: //颁发者组织机构名称
@@ -3430,17 +3439,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_organizationName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_ORGANIZATIONUNITNAME: //颁发者组织机构单元名称
@@ -3449,17 +3459,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_organizationalUnitName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_STATEORPROVINCENAME: //颁发者州或省名称
@@ -3468,17 +3479,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_stateOrProvinceName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_COMMONNAME: //颁发者通用名称
@@ -3487,17 +3499,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_commonName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_LOCALITYNAME: //颁发者地理位置名称
@@ -3506,17 +3519,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_localityName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_TITLE: //颁发者头衔
@@ -3525,18 +3539,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_title, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
-
+			*infoFlag = 0;
 			break;
 		}
 		
@@ -3546,18 +3560,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_surname, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
-
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_GIVENNAME://颁发者名
@@ -3566,18 +3580,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_givenName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
-
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_INITIALS://颁发者首字母
@@ -3586,18 +3600,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_initials, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
-
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_EMAILADDRESS: //颁发者电子邮件地址
@@ -3606,17 +3620,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_pkcs9_emailAddress, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_POSTALADDRESS: //颁发者邮政地址
@@ -3625,18 +3640,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_postalAddress, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
-
+			*infoFlag = 0;
 			break;
 		}
 		
@@ -3646,17 +3661,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_pseudonym, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_POSTALCODE: //颁发者邮政编码
@@ -3665,18 +3681,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_postalCode, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
-
+			*infoFlag = 0;
 			break;
 		}
 		
@@ -3686,18 +3702,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			issuer = X509_get_issuer_name(x509Cert);
 			if (!issuer)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_get_issuer_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(issuer, NID_pkcs9_unstructuredName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 1;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
-
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_NOTBEFORE: //证书有效期起始时间
@@ -3706,19 +3722,20 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			notBefore = X509_get_notBefore(x509Cert);
 			if (!notBefore)
 			{
-				ret = 4;
+				ret = index;
 				DEBUG_PRINT("X509_get_notBefore err\n");
 				break;
 			}
 			derlen = i2d_ASN1_TIME(notBefore, &buf);
 			if (derlen <= 0)
 			{
-				ret = 4;
+				ret = index;
 				DEBUG_PRINT("i2d_ASN1_TIME err\n");
 				break;
 			}
 			derlen -= 2;
 			memmove(der, der + 2, derlen);//去除tl
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_NOTAFTER://证书有效期截至时间
@@ -3727,19 +3744,20 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			notAfter = X509_get_notAfter(x509Cert);
 			if (!notAfter)
 			{
-				ret = 5;
+				ret = index;
 				DEBUG_PRINT("X509_get_notAfter err\n");
 				break;
 			}
 			derlen = i2d_ASN1_TIME(notAfter, &buf);
 			if (derlen <= 0)
 			{
-				ret = 5;
+				ret = index;
 				DEBUG_PRINT("i2d_ASN1_TIME err\n");
 				break;
 			}
 			derlen -= 2;
 			memmove(der, der + 2, derlen); //去除tl
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_SUBJECT_COUNTRYNAME://主题国家
@@ -3748,17 +3766,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			subject = X509_get_subject_name(x509Cert);
 			if (!subject)
 			{
-				ret = 6;
+				ret = index;
 				DEBUG_PRINT("X509_get_subject_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(subject, NID_countryName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 6;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 
@@ -3768,17 +3787,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			subject = X509_get_subject_name(x509Cert);
 			if (!subject)
 			{
-				ret = 6;
+				ret = index;
 				DEBUG_PRINT("X509_get_subject_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(subject, NID_organizationName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 6;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 
@@ -3789,17 +3809,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			subject = X509_get_subject_name(x509Cert);
 			if (!subject)
 			{
-				ret = 7;
+				ret = index;
 				DEBUG_PRINT("X509_get_subject_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(subject, NID_stateOrProvinceName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 7;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_SUBJECT_ORGANIZATIONALUNITNAME://主题部门名称
@@ -3808,17 +3829,18 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			subject = X509_get_subject_name(x509Cert);
 			if (!subject)
 			{
-				ret = 8;
+				ret = index;
 				DEBUG_PRINT("X509_get_subject_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(subject, NID_organizationalUnitName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 8;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_SUBJECT_COMMONNAME://主题通用名称
@@ -3827,20 +3849,233 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			subject = X509_get_subject_name(x509Cert);
 			if (!subject)
 			{
-				ret = 9;
+				ret = index;
 				DEBUG_PRINT("X509_get_subject_name err\n");
 				break;
 			}
 			derlen = X509_NAME_get_text_by_NID(subject, NID_commonName, (char*)buf, certLen);
 			if (derlen <= 0)
 			{
-				ret = 9;
+				ret = index;
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
+		case DEC_INDEX_SUBJECT_LOCALITYNAME://主题地区名称
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_localityName, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}
+		case DEC_INDEX_SUBJECT_TITLE://主题标题，头衔
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_title, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}
+		
+		case DEC_INDEX_SUBJECT_SURNAME: //姓
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_surname, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}
+		case DEC_INDEX_SUBJECT_GIVENNAME: //名
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_givenName, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}
+		case DEC_INDEX_SUBJECT_INITIALS: //主题首字母
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_initials, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}
+		case DEC_INDEX_SUBJECT_EMAIL:
+		case DEC_INDEX_SUBJECT_EMAILADDRESS: //邮箱
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_pkcs9_emailAddress, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}
+		case DEC_INDEX_SUBJECT_STREETADDRESS: //街道地址
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_streetAddress, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}
+		case DEC_INDEX_SUBJECT_POSTALOFFICEBOX:
+		{
+			ret = DEC_INDEX_SUBJECT_POSTALOFFICEBOX;
+			DEBUG_PRINT("DEC_INDEX_SUBJECT_POSTALOFFICEBOX err\n");
+			break;
+		}
+		case DEC_INDEX_SUBJECT_POSTALCODE: //邮政编码
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = 17;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_postalCode, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = 17;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}
+		
+		case DEC_INDEX_SUBJECT_TELEPHONENUMBER: //电话号码
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_telephoneNumber, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}
+		
+		case DEC_INDEX_SUBJECT_FACSIMILETELEPHONENUMBER://传真号码
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_facsimileTelephoneNumber, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			*infoFlag = 0;
+			break;
+		}		
+
 		case DEC_INDEX_DERPUBKEY: //public key
+		case DEC_INDEX_USRPUBKEY: //public key
 		{
 			/* 获取证书公钥 */
 			X509_PUBKEY* pubkey = NULL;
@@ -3858,48 +4093,204 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				ret = 39;
 				DEBUG_PRINT("Error: failed to convert public key to DER format\n");
 			}
+			*infoFlag = 2;
 			break;
 		}
+		//颁发者唯一ID
+		case DEC_INDEX_ISSUER_UNIQUEID:
+		{
+			//获取证书颁发者唯一ID
+			// 获取扩展 "authorityKeyIdentifier"
+			X509_EXTENSION* extension = X509_get_ext(x509Cert, X509_get_ext_by_NID(x509Cert, NID_authority_key_identifier, -1));
+			if (extension == NULL) 
+			{
+				ret = index;
+				DEBUG_PRINT("找不到颁发者密钥标识符 (Authority Key Identifier) 扩展\n");
+				break;
+			}
 
-		//case DEC_INDEX_ISSUER_FACSIMILETELEPHONENUMBER: //颁发者传真号码
-		//{
-		//	X509_NAME* issuer = NULL;
-		//	issuer = X509_get_issuer_name(x509Cert);
-		//	if (!issuer)
-		//	{
-		//		ret = 1;
-		//		DEBUG_PRINT("X509_get_issuer_name err\n");
-		//		break;
-		//	}
-		//	derlen = X509_NAME_get_text_by_NID(issuer, NID_favouriteDrink, (char*)buf, certLen);
-		//	if (derlen <= 0)
-		//	{
-		//		ret = 1;
-		//		DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
-		//		break;
-		//	}
+			// 解析扩展数据
+			ASN1_OCTET_STRING* akid_octet_str = X509_EXTENSION_get_data(extension);
+			if (akid_octet_str == NULL) 
+			{
+				ret = index;
+				DEBUG_PRINT("无法获取颁发者密钥标识符 (Authority Key Identifier) 扩展数据\n");
+				break;
+			}
+			// 将证书颁发者唯一ID转换为 DER 编码格式 
+			derlen = i2d_ASN1_OCTET_STRING(akid_octet_str, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert subject key identifier to DER format\n");
+			}
+			*infoFlag = 1;
+			break;
+			/*const ASN1_BIT_STRING* issuerUniqueId = NULL;
+			const ASN1_BIT_STRING* subjectUniqueId = NULL;
+			X509_NAME* issuer = NULL;
+			issuer = X509_get_issuer_name(x509Cert);
+			if (!issuer)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_issuer_name err\n");
+				break;
+			}
+			// 获取颁发者唯一ID字段
+			X509_get0_uids(x509Cert,&issuerUniqueId,&issuerUniqueId);
+			if (issuerUniqueId != NULL)
+			{
+				derlen = ASN1_STRING_length(issuerUniqueId);
+				if (derlen <= 0)
+				{
+					ret = index;
+					DEBUG_PRINT("ASN1_STRING_length err\n");
+					break;
+				}
+				memcpy(buf, ASN1_STRING_get0_data(issuerUniqueId), derlen);
+			}
+			else
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get0_uids err\n");
+				break;
+			}*/
+		}
+		
+		case DEC_INDEX_SUBJECT_UNIQUEID: //主题唯一ID
+		{
+			/* 获取证书主题唯一ID */
+			// 获取扩展 "NID_subject_key_identifier"
+			X509_EXTENSION* extension = X509_get_ext(x509Cert, X509_get_ext_by_NID(x509Cert, NID_subject_key_identifier, -1));
+			if (extension == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("找不到持有者密钥标识符 (Authority Key Identifier) 扩展\n");
+				break;
+			}
 
-		//	break;
-		//}
-		//case DEC_INDEX_ISSUER_BUSINESSCATEGORY: //颁发者商业类别
-		//{
-		//	X509_NAME* issuer = NULL;
-		//	issuer = X509_get_issuer_name(x509Cert);
-		//	if (!issuer)
-		//	{
-		//		ret = 1;
-		//		DEBUG_PRINT("X509_get_issuer_name err\n");
-		//		break;
-		//	}
-		//	derlen = X509_NAME_get_text_by_NID(issuer, NID_businessCategory, (char*)buf, certLen);
-		//	if (derlen <= 0)
-		//	{
-		//		ret = 1;
-		//		DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
-		//		break;
-		//	}
-		//	break;
-		//}
+			// 解析扩展数据
+			ASN1_OCTET_STRING* akid_octet_str = X509_EXTENSION_get_data(extension);
+			if (akid_octet_str == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("无法获取持有者密钥标识符 (Authority Key Identifier) 扩展数据\n");
+				break;
+			}
+			// 将证书颁发者唯一ID转换为 DER 编码格式 
+			derlen = i2d_ASN1_OCTET_STRING(akid_octet_str, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert subject key identifier to DER format\n");
+			}
+			*infoFlag = 1;
+			break;
+			/*const ASN1_BIT_STRING* subjectUniqueId = NULL;
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			// 获取主题唯一ID字段
+			X509_get0_uids(x509Cert,&subjectUniqueId,&subjectUniqueId);
+			if (subjectUniqueId != NULL)
+			{
+				derlen = ASN1_STRING_length(subjectUniqueId);
+				if (derlen <= 0)
+				{
+					ret = index;
+					DEBUG_PRINT("ASN1_STRING_length err\n");
+					break;
+				}
+				memcpy(buf, ASN1_STRING_get0_data(subjectUniqueId), derlen);
+			}
+			else
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get0_uids err\n");
+				break;
+			}*/
+		}
+		//密钥用法
+		case DEC_INDEX_KEYUSAGE:
+		{
+			// 获取扩展 "keyUsage"
+			X509_EXTENSION* extension = X509_get_ext(x509Cert, X509_get_ext_by_NID(x509Cert, NID_key_usage, -1));
+			if (extension == NULL) 
+			{
+				ret = index;
+				DEBUG_PRINT("找不到密钥用法 (Key Usage) 扩展\n");
+				break;
+			}
+
+			// 解析扩展数据
+			ASN1_BIT_STRING* key_usage_bitstr = X509_EXTENSION_get_data(extension);
+			if (key_usage_bitstr == NULL) 
+			{
+				ret = index;
+				DEBUG_PRINT("无法获取密钥用法 (Key Usage) 扩展数据\n");
+				break;
+			}
+
+			// 将扩展数据解析为整数
+			unsigned int UNUSED_BITS;
+			unsigned long key_usage_flags = 0;
+			//key_usage_flags = ASN1_BIT_STRING_get_bit(key_usage_bitstr, 0); //
+			key_usage_flags = key_usage_bitstr->data[3];
+			UNUSED_BITS= key_usage_bitstr->data[2]; //未使用的比特位数
+			*iInfo = key_usage_flags;
+			*infoFlag = 2;
+#ifdef _DEBUG
+
+			// 打印密钥用法
+			printf("密钥用法 (Key Usage)：\n");
+			if (key_usage_flags & KU_DIGITAL_SIGNATURE)
+				DEBUG_PRINT("- 数字签名\n");
+			if (key_usage_flags & KU_NON_REPUDIATION)
+				DEBUG_PRINT("- 非否认\n");
+			if (key_usage_flags & KU_KEY_ENCIPHERMENT)
+				DEBUG_PRINT("- 密钥加密\n");
+			if (key_usage_flags & KU_DATA_ENCIPHERMENT)
+				DEBUG_PRINT("- 数据加密\n");
+			if (key_usage_flags & KU_KEY_AGREEMENT)
+				DEBUG_PRINT("- 密钥协商\n");
+			if (key_usage_flags & KU_KEY_CERT_SIGN)
+				DEBUG_PRINT("- 密钥证书签名\n");
+			if (key_usage_flags & KU_CRL_SIGN)
+				DEBUG_PRINT("- CRL 签名\n");
+			if (key_usage_flags & KU_ENCIPHER_ONLY)
+				DEBUG_PRINT("- 仅加密\n");
+			if (key_usage_flags & KU_DECIPHER_ONLY)
+				DEBUG_PRINT("- 仅解密\n");
+#endif // _DEBUG
+			break;
+		}
+		
+		
+		
+		case DEC_INDEX_SUBJECT_GENERATIONQUALIFIER: //主题生成限定符
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = 15;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_generationQualifier, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = 15;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			break;
+		}
 		case DEC_INDEX_ISSUER_GENERATIONQUALIFIER://颁发者代际限定符
 		{
 			X509_NAME* issuer = NULL;
@@ -3920,13 +4311,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 
 			break;
 		}
-		
-
-		
-		
-		
-		
-		case 400: //Subject
+		case DEC_INDEX_SUBJECT: //Subject
 		{
 			X509_NAME* subject = NULL;
 			subject = X509_get_subject_name(x509Cert);
@@ -3945,7 +4330,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			}
 			break;
 		}
-		case 401: //Issuer 
+		case DEC_INDEX_ISSUER: //Issuer 
 		{
 			X509_NAME* issuer = NULL;
 			issuer = X509_get_issuer_name(x509Cert);
@@ -3964,9 +4349,404 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			}
 			break;
 		}
+		
+
+		case DEC_INDEX_DEREXTENSION: //扩展
+		{
+			/* 获取证书扩展 */
+			X509_EXTENSION* ext = NULL;
+			ext = X509_get_ext(x509Cert, index);
+			if (ext == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get extension from certificate\n");
+				break;
+			}
+			/* 将扩展转换为 DER 编码格式 */
+			derlen = i2d_X509_EXTENSION(ext, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert extension to DER format\n");
+			}
+			break;
+		}
+		case DEC_INDEX_AUTHORITYINFOACCESS: //颁发者信息访问地址
+		{
+			/* 获取证书颁发者信息访问地址 */
+			ACCESS_DESCRIPTION* authorityInfoAccess = NULL;
+			authorityInfoAccess = (ACCESS_DESCRIPTION*)X509_get_ext_d2i(x509Cert, NID_info_access, NULL, NULL);
+			if (authorityInfoAccess == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get authority info access from certificate\n");
+				break;
+			}
+			/* 将颁发者信息访问地址转换为 DER 编码格式 */
+			derlen = i2d_ACCESS_DESCRIPTION(authorityInfoAccess, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert authority info access to DER format\n");
+			}
+			break;
+		}
+		case DEC_INDEX_SUBJECTKEYID:
+		case DEC_INDEX_SUBJECTKEYIDENTIFIER: //主题密钥标识符
+		{
+			/* 获取证书主题密钥标识符 */
+			ASN1_OCTET_STRING* subjectKeyIdentifier = NULL;
+			subjectKeyIdentifier = (ASN1_OCTET_STRING*)X509_get_ext_d2i(x509Cert, NID_subject_key_identifier, NULL, NULL);
+			if (subjectKeyIdentifier == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get subject key identifier from certificate\n");
+				break;
+			}
+			/* 将主题密钥标识符转换为 DER 编码格式 */
+			derlen = i2d_ASN1_OCTET_STRING(subjectKeyIdentifier, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert subject key identifier to DER format\n");
+			}
+			break;
+		}
+		case DEC_INDEX_AUTHORITYKEYIDENTIFIER: //颁发者密钥标识符
+		{
+			/* 获取证书颁发者密钥标识符 */
+			ASN1_OCTET_STRING* authorityKeyIdentifier = NULL;
+			authorityKeyIdentifier = (ASN1_OCTET_STRING*)X509_get_ext_d2i(x509Cert, NID_authority_key_identifier, NULL, NULL);
+			if (authorityKeyIdentifier == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get authority key identifier from certificate\n");
+				break;
+			}
+			/* 将颁发者密钥标识符转换为 DER 编码格式 */
+			derlen = i2d_ASN1_OCTET_STRING(authorityKeyIdentifier, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert authority key identifier to DER format\n");
+			}
+			break;
+		}
+		
+		case DEC_INDEX_SUBJECTALTNAME://使用者可选名称
+		case DEC_INDEX_SUBJECTALTERNATIVENAME: //主题备用名称
+		{
+			/* 获取证书主题备用名称 */
+			GENERAL_NAMES* subjectAltName = NULL;
+			subjectAltName = (GENERAL_NAMES*)X509_get_ext_d2i(x509Cert, NID_subject_alt_name, NULL, NULL);
+			if (subjectAltName == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get subject alt name from certificate\n");
+				break;
+			}
+			/* 将主题备用名称转换为 DER 编码格式 */
+			derlen = i2d_GENERAL_NAMES(subjectAltName, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert subject alt name to DER format\n");
+			}
+			break;
+		}
+		case DEC_INDEX_BASICCONSTRAINTS: //基本约束
+		{
+			/* 获取证书基本约束 */
+			BASIC_CONSTRAINTS* basicConstraints = NULL;
+			basicConstraints = (BASIC_CONSTRAINTS*)X509_get_ext_d2i(x509Cert, NID_basic_constraints, NULL, NULL);
+			if (basicConstraints == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get basic constraints from certificate\n");
+				break;
+			}
+			/* 将基本约束转换为 DER 编码格式 */
+			derlen = i2d_BASIC_CONSTRAINTS(basicConstraints, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert basic constraints to DER format\n");
+			}
+			break;
+		}
+
+		case DEC_INDEX_ISSUERALTERNATIVENAME: //颁发者备用名称
+		{
+			/* 获取证书颁发者备用名称 */
+			GENERAL_NAMES* issuerAltName = NULL;
+			issuerAltName = (GENERAL_NAMES*)X509_get_ext_d2i(x509Cert, NID_issuer_alt_name, NULL, NULL);
+			if (issuerAltName == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get issuer alt name from certificate\n");
+				break;
+			}
+			/* 将颁发者备用名称转换为 DER 编码格式 */
+			derlen = i2d_GENERAL_NAMES(issuerAltName, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert issuer alt name to DER format\n");
+			}
+			break;
+		}
+		case DEC_INDEX_CRLNUMBER: //CRL 号码
+		{
+			/* 获取证书 CRL 号码 */
+			ASN1_INTEGER* crlNumber = NULL;
+			crlNumber = (ASN1_INTEGER*)X509_get_ext_d2i(x509Cert, NID_crl_number, NULL, NULL);
+			if (crlNumber == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get crl number from certificate\n");
+				break;
+			}
+			/* 将 CRL 号码转换为 DER 编码格式 */
+			derlen = i2d_ASN1_INTEGER(crlNumber, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert crl number to DER format\n");
+			}
+			break;
+		}
+		case DEC_INDEX_CRLREASON: //CRL 原因
+		{
+			/* 获取证书 CRL 原因 */
+			ASN1_ENUMERATED* crlReason = NULL;
+			crlReason = (ASN1_ENUMERATED*)X509_get_ext_d2i(x509Cert, NID_crl_reason, NULL, NULL);
+			if (crlReason == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get crl reason from certificate\n");
+				break;
+			}
+			/* 将 CRL 原因转换为 DER 编码格式 */
+			derlen = i2d_ASN1_ENUMERATED(crlReason, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert crl reason to DER format\n");
+			}
+			break;
+		}
+		case DEC_INDEX_CRLDISTRIBUTIONPOINTS: //CRL 分发点
+		{
+			/*X509_EXTENSION* exts = NULL;
+			//获取证书 CRL 分发点 
+			STACK_OF(DIST_POINT)* crlDistributionPoints = NULL;
+			crlDistributionPoints = (STACK_OF(DIST_POINT)*)X509_get_ext_d2i(x509Cert, NID_crl_distribution_points, NULL, NULL);
+			if (crlDistributionPoints == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get CRL distribution points from certificate\n");
+				break;
+			}
+			derlen = 0;
+			for (int i = 0; i < sk_DIST_POINT_num((STACK_OF(DIST_POINT)*)crlDistributionPoints); i++)
+			{
+				///buf = der + derlen;
+				DIST_POINT* dp = sk_DIST_POINT_value(crlDistributionPoints, i);
+				//derlen = i2d_DIST_POINT(dp, &buf); //这样只能一个一个写，而不是完整的DER
+				GENERAL_NAMES* names = dp->distpoint->name.fullname;
+
+				for (int j = 0; j < sk_GENERAL_NAME_num(names); j++)
+				{
+					GENERAL_NAME* name = sk_GENERAL_NAME_value(names, j);
+
+					if (name->type == GEN_URI)
+					{
+						printf("CRL 分发点 URL: %s\n", name->d.uniformResourceIdentifier->data);
+					}
+				}
+			}
+			if (crlDistributionPoints)
+			{
+				sk_DIST_POINT_pop_free(crlDistributionPoints, DIST_POINT_free);
+			}*/
+
+			//以下实现和openssl内部实现差不多，都是匹配NID，返回完整的DER编码数据
+			X509_CRL* crl = NULL;
+			STACK_OF(X509_EXTENSION)* extensions=NULL;
+			int idx;
+			// 获取扩展列表
+			extensions = (STACK_OF(X509_EXTENSION)*)X509_get0_extensions(x509Cert);
+			if (extensions == NULL) 
+			{
+				printf("No extensions found in the certificate.\n");
+				ret= index;
+				break;
+			}
+			derlen = 0; //如果没有找到后续也不会赋值
+			// 查找 CRL 分发点扩展
+			for (idx = 0; idx < sk_X509_EXTENSION_num(extensions); idx++) 
+			{
+				X509_EXTENSION* ext = sk_X509_EXTENSION_value(extensions, idx);
+				if (ext)
+				{
+					ASN1_OBJECT* obj = X509_EXTENSION_get_object(ext);
+					if (OBJ_obj2nid(obj) == NID_crl_distribution_points)
+					{
+						ASN1_OCTET_STRING* extoct = X509_EXTENSION_get_data(ext);
+						//i2a_ASN1_OBJECT(bp, obj);
+						//derlen = i2d_BASIC_CONSTRAINTS(ext, &buf);
+						derlen= extoct->length;
+						memcpy(buf, extoct->data, extoct->length);
+						// 释放资源,不能释放，此指针实际是证书里的数据
+						//X509_EXTENSION_free(ext);
+						break;
+					}
+				}			
+			}
+			// 释放整个扩展堆栈,不能释放，此指针实际是证书里的数据
+			//sk_X509_EXTENSION_pop_free(extensions, X509_EXTENSION_free);
+			/*//以下和上述第一种实现类似，可打印具体的数据，但是不能合并DER编码数据
+			int crl_dp_index;
+			X509_EXTENSION* crl_dp_ext;
+			STACK_OF(DIST_POINT)* crl_dp_stack;
+
+			// Load the X509 certificate
+			// ...
+
+			// Get the index of the CRL distribution points extension
+			crl_dp_index = X509_get_ext_by_NID(x509Cert, NID_crl_distribution_points,NULL);
+
+			if (crl_dp_index == -1) {
+				// The CRL distribution points extension is not present in the certificate
+				// ...
+			}
+			else {
+				// Get the CRL distribution points extension
+				crl_dp_ext = X509_get_ext(x509Cert, crl_dp_index);
+
+				if (crl_dp_ext == NULL) {
+					// Error getting the CRL distribution points extension
+					// ...
+				}
+				else {
+					// Parse the CRL distribution points extension
+					crl_dp_stack = (STACK_OF(DIST_POINT)*)X509V3_EXT_d2i(crl_dp_ext);
+
+					if (crl_dp_stack == NULL) {
+						// Error parsing the CRL distribution points extension
+						// ...
+					}
+					else 
+					{
+						DIST_POINT* crl_dp;
+						// Iterate over the CRL distribution points
+						for (int i = 0; i < sk_DIST_POINT_num(crl_dp_stack); i++) {
+							DIST_POINT* dp = sk_DIST_POINT_value(crl_dp_stack, i);
+							GENERAL_NAMES* names = dp->distpoint->name.fullname;
+
+							for (int j = 0; j < sk_GENERAL_NAME_num(names); j++) {
+								GENERAL_NAME* name = sk_GENERAL_NAME_value(names, j);
+
+								if (name->type == GEN_URI) {
+									printf("CRL 分发点 URL: %s\n", name->d.uniformResourceIdentifier->data);
+								}
+							}
+						}
+
+						// Free the CRL distribution points stack
+						sk_DIST_POINT_pop_free(crl_dp_stack, DIST_POINT_free);
+					}
+				}
+			}
+			*/
+			break;
+		}
+		case DEC_INDEX_CERTIFICATEPOLICIES: //证书策略
+		{
+			/* 获取证书证书策略 */
+			POLICYINFO* certificatePolicies = NULL;
+			certificatePolicies = (POLICYINFO*)X509_get_ext_d2i(x509Cert, NID_certificate_policies, NULL, NULL);
+			if (certificatePolicies == NULL)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to get certificate policies from certificate\n");
+				break;
+			}
+			/* 将证书策略转换为 DER 编码格式 */
+			derlen = i2d_POLICYINFO(certificatePolicies, &buf);
+			if (derlen < 0)
+			{
+				ret = index;
+				DEBUG_PRINT("Error: failed to convert certificate policies to DER format\n");
+			}
+			break;
+		}
+		
+
+		case DEC_INDEX_ISSUER_FACSIMILETELEPHONENUMBER: //颁发者传真号码
+		{
+			X509_NAME* issuer = NULL;
+			issuer = X509_get_issuer_name(x509Cert);
+			if (!issuer)
+			{
+				ret = 1;
+				DEBUG_PRINT("X509_get_issuer_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(issuer, NID_favouriteDrink, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = 1;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+
+			break;
+		}
+		case DEC_INDEX_ISSUER_BUSINESSCATEGORY: //颁发者商业类别
+		{
+			X509_NAME* issuer = NULL;
+			issuer = X509_get_issuer_name(x509Cert);
+			if (!issuer)
+			{
+				ret = 1;
+				DEBUG_PRINT("X509_get_issuer_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(issuer, NID_businessCategory, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = 1;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			break;
+		}
+		case DEC_INDEX_SUBJECT_BUSINESSCATEGORY: //商业类别
+		{
+			X509_NAME* subject = NULL;
+			subject = X509_get_subject_name(x509Cert);
+			if (!subject)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_get_subject_name err\n");
+				break;
+			}
+			derlen = X509_NAME_get_text_by_NID(subject, NID_businessCategory, (char*)buf, certLen);
+			if (derlen <= 0)
+			{
+				ret = index;
+				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
+				break;
+			}
+			break;
+		}
+
+
+
 		default:
 			ret = -1;
-			DEBUG_PRINT("Error: invalid index number\n");
+			//DEBUG_PRINT("Error: invalid index number\n");
 			break;
 		}
 		if (!ret)
@@ -4022,16 +4802,17 @@ void testGetCertInfo()
 {
 	unsigned char cert[4096] = { 0 };
 	size_t certLen = 4096;
-	FILE* fp = fopen("./certs/SS.crt", "rb");
+	FILE* fp = fopen("./certs/_.zhihu.com.crt", "rb");
 	certLen = fread(cert, 1, 4096, fp);
 	fclose(fp);
 	unsigned char info[4096] = { 0 };
 	size_t infoLen = 4096;
 	long iInfo = 0;
-	for (size_t i = 0; i < 100; i++)
+	size_t flag;
+	for (size_t i = 0; i < 500; i++)
 	{
 		iInfo = 0;
-		int ret = getCertInfo(cert, certLen, i, &iInfo, info, &infoLen);
+		int ret = getCertInfo(cert, certLen, i, &iInfo, info, &infoLen,&flag);
 		if (ret)
 		{
 			DEBUG_PRINT("getCertInfo err\n");

@@ -30,23 +30,23 @@
 #define DEC_INDEX_SUBJECT_ORGANIZATIONALUNITNAME      25   //持有者部门名称
 #define DEC_INDEX_SUBJECT_STATEORPROVINCENAME         26   //持有者省名
 #define DEC_INDEX_SUBJECT_COMMONNAME                  27   //持有者通用名
-#define DEC_INDEX_SUBJEC_LOCALITYNAME                 28   //持有者所在地名
-#define DEC_INDEX_SUBJEC_TITLE                        29   //持有者头衔
-#define DEC_INDEX_SUBJEC_SURNAME                      30   //持有者姓
-#define DEC_INDEX_SUBJEC_GIVENNAME                    31   //持有者名
-#define DEC_INDEX_SUBJEC_INITIALS                     32   //持有者初名
-#define DEC_INDEX_SUBJEC_EMAIL                        33   //持有者E_Mail地址
-#define DEC_INDEX_SUBJEC_POSTALADDRESS                34   //持有者通信地址
-#define DEC_INDEX_SUBJEC_POSTALOFFICEBOX              35   //持有者信箱
-#define DEC_INDEX_SUBJEC_POSTALCODE                   36   //持有者邮编
-#define DEC_INDEX_SUBJEC_TELEPHONENUMBER              37   //持有者电话号码
-#define DEC_INDEX_SUBJEC_TELEXNUMBER                  38   //持有者传真号码
+#define DEC_INDEX_SUBJECT_LOCALITYNAME                28   //持有者所在地名
+#define DEC_INDEX_SUBJECT_TITLE                        29   //持有者头衔
+#define DEC_INDEX_SUBJECT_SURNAME                      30   //持有者姓
+#define DEC_INDEX_SUBJECT_GIVENNAME                    31   //持有者名
+#define DEC_INDEX_SUBJECT_INITIALS                     32   //持有者初名
+#define DEC_INDEX_SUBJECT_EMAIL                        33   //持有者E_Mail地址
+#define DEC_INDEX_SUBJECT_STREETADDRESS                34   //持有者通信地址
+#define DEC_INDEX_SUBJECT_POSTALOFFICEBOX              35   //持有者信箱
+#define DEC_INDEX_SUBJECT_POSTALCODE                   36   //持有者邮编
+#define DEC_INDEX_SUBJECT_TELEPHONENUMBER              37   //持有者电话号码
+#define DEC_INDEX_SUBJECT_FACSIMILETELEPHONENUMBER     38   //持有者传真号码
 #define DEC_INDEX_DERPUBKEY                           39   //DER编码公钥
 #define DEC_INDEX_USRPUBKEY                           40   //DER编码公钥(同DEC_INDEX_DERPUBKEY)
-#define DEC_INDEX_ISSU_UNIQUEID                       41   //颁发者唯一ID
+#define DEC_INDEX_ISSUER_UNIQUEID                       41   //颁发者唯一ID
 #define DEC_INDEX_SUBJECT_UNIQUEID                    42   //持有者唯一ID
-#define DEC_INDEX_SUBJEC_EMAILADDRESS                 43   //持有者email
-#define DEC_INDEX_KEYUSAGE                            44   //
+#define DEC_INDEX_SUBJECT_EMAILADDRESS                 43   //持有者email
+#define DEC_INDEX_KEYUSAGE                            44   //密钥用法
 #define DEC_INDEX_CRLDISTRIBUTIONPOINT4S1             45   //证书的CRL存取点
 #define DEC_INDEX_LEGALPERSON                         52   //单位法人--> 所在单位名称
 #define DEC_INDEX_BUSSINESSCODE                       53   //用于传递基础表ID
@@ -66,7 +66,7 @@
 #define DEC_INDEX_SUBJECTKEYID                        76   //主题密钥标识符
 #define DEC_INDEX_AUTHORITYINFOACCESS1                77   //ocsp的http或ldap访问站点URI1
 #define DEC_INDEX_AUTHORITYINFOACCESS2                78   //ocsp的http或ldap访问站点URI2
-#define DEC_INDEX_CRLDISTRIBUTIONPOINT4S2             79   //证书的CRL存取点2
+#define DEC_INDEX_CRLDISTRIBUTIONPOINTS               79   //证书的CRL存取点2
 #define DEC_INDEX_ISCA                                80   //
 #define DEC_INDEX_IDENTIFYCARDNUMBER                  81   //1.2.86.11.7.1   中国信息安全标委会证书扩展域：身份证号
 #define DEC_INDEX_INSURANCENUMBER                     82   //1.2.86.11.7.2   中国信息安全标委会证书扩展域：社会保险号
@@ -75,8 +75,8 @@
 #define DEC_INDEX_TAXATIONNUMEBER                     85   //1.2.86.11.7.5   中国信息安全标委会证书扩展域：税号
 #define DEC_INDEX_NETSCAPECERTTYPE                    86   //
 #define DEC_INDEX_ROOTSERIALNUMBER                    87   //
-#define DEC_INDEX_SUBJEC_DEVICENUMBER                 88   //2.5.4.5 持有者主题SERIALNUBER
-#define DEC_INDEX_SUBJEC_DESCRIPTION                  89   //2.5.4.13 持有者主题 Description
+#define DEC_INDEX_SUBJECT_DEVICENUMBER                 88   //2.5.4.5 持有者主题SERIALNUBER
+#define DEC_INDEX_SUBJECT_DESCRIPTION                  89   //2.5.4.13 持有者主题 Description
 #define DEC_INDEX_PRIV_EXT_CERTUSAGE_A                90  //
 #define DEC_INDEX_DC                                  91   //
 #define DEC_INDEX_PRIV_EXT_LEGALPERSON                100  //所在单位名称(PRIV_EXT)
@@ -97,7 +97,7 @@
 #define DEC_INDEX_POLICY                              115  //
 #define DEC_INDEX_GUID                                116  //GUID
 #define DEC_INDEX_NAME                                117  //
-#define DEC_INDEX_SUBJEC_GENERATIONQUALIFIER          118  //
+#define DEC_INDEX_SUBJECT_GENERATIONQUALIFIER          118  //
 #define DEC_INDEX_ISSUER_GENERATIONQUALIFIER          119  //
 #define DEC_INDEX_SXCA1                               131  //陕西CA扩展1
 #define DEC_INDEX_SXCA2                               132  //陕西CA扩展2
@@ -118,7 +118,26 @@
 #define DEC_INDEX_ORGANIZATIONALUNITNAME9             229  //OU9
 #define DEC_INDEX_EGOVPAPERTYPE                       230  //个人身份标识码(国标)-证件类型
 #define DEC_INDEX_EGOVPAPERCODE                       231  //个人身份标识码(国标)-证件号码
-#define DEC_INDEX_SERVERIP                            159  //SERVERIP
+#define DEC_INDEX_SUBJECTALTNAME                      159  //使用者可选名称
 
+#define DEC_INDEX_SUBJECT							  400	//主题
+#define DEC_INDEX_ISSUER							  401	//颁发者
+#define DEC_INDEX_DEREXTENSION						  500	//扩展域
+#define	DEC_INDEX_AUTHORITYINFOACCESS				  501	//颁发者信息访问地址
+#define DEC_INDEX_SUBJECTKEYIDENTIFIER				  502	//主题密钥标识符
+#define DEC_INDEX_AUTHORITYKEYIDENTIFIER			  503	//颁发者密钥标识符
+#define DEC_INDEX_SUBJECTALTERNATIVENAME			  504	//主题备用名称
+#define DEC_INDEX_BASICCONSTRAINTS					  505	//基本约束
+#define DEC_INDEX_ISSUERALTERNATIVENAME				  506	//颁发者备用名称
+#define DEC_INDEX_CRLNUMBER							  507	//CRL号码
+#define DEC_INDEX_CRLREASON							  508	//CRL原因
+#define DEC_INDEX_CERTIFICATEPOLICIES			      509	//证书策略
+#define DEC_INDEX_POLICYMAPPINGS					  510	//策略映射
+#define DEC_INDEX_POLICYCONSTRAINTS					  511	//策略约束
+#define DEC_INDEX_SUBJECTDIRECTORYATTRIBUTES		  512	//主题目录属性
+#define DEC_INDEX_NAMECONSTRAINTS					  513	//名称约束
+#define DEC_INDEX_ISSUER_FACSIMILETELEPHONENUMBER	  514	//颁发者传真号码
+#define DEC_INDEX_ISSUER_BUSINESSCATEGORY			  515	//颁发者商业类别
+#define DEC_INDEX_SUBJECT_BUSINESSCATEGORY			  516	//使用者商业类别
 
 #endif // !CERTINDEX
