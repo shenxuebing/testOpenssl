@@ -123,7 +123,7 @@
 #define DEC_INDEX_SUBJECT							  400	//主题
 #define DEC_INDEX_ISSUER							  401	//颁发者
 #define DEC_INDEX_DEREXTENSION						  500	//扩展域
-#define	DEC_INDEX_AUTHORITYINFOACCESS				  501	//颁发者信息访问地址
+#define	DEC_INDEX_AUTHORITYINFOACCESS				  501	//颁发者信息访问地址 OCSP
 #define DEC_INDEX_SUBJECTKEYIDENTIFIER				  502	//主题密钥标识符
 #define DEC_INDEX_AUTHORITYKEYIDENTIFIER			  503	//颁发者密钥标识符
 #define DEC_INDEX_SUBJECTALTERNATIVENAME			  504	//主题备用名称

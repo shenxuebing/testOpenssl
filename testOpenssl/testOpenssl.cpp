@@ -3362,7 +3362,10 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				DEBUG_PRINT("i2d_ASN1_INTEGER err\n");
 				break;
 			}
+			derlen -= 2;
+			memmove(der, der + 2, derlen);//去除tl
 			*infoFlag = 0;
+			break;
 		}
 		case DEC_INDEX_INT_SIGNALGID: //int 值签名算法
 		{
@@ -4096,125 +4099,129 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 			*infoFlag = 2;
 			break;
 		}
-		//颁发者唯一ID
-		case DEC_INDEX_ISSUER_UNIQUEID:
-		{
-			//获取证书颁发者唯一ID
-			// 获取扩展 "authorityKeyIdentifier"
-			X509_EXTENSION* extension = X509_get_ext(x509Cert, X509_get_ext_by_NID(x509Cert, NID_authority_key_identifier, -1));
-			if (extension == NULL) 
-			{
-				ret = index;
-				DEBUG_PRINT("找不到颁发者密钥标识符 (Authority Key Identifier) 扩展\n");
-				break;
-			}
+		////颁发者唯一ID
+		//case DEC_INDEX_ISSUER_UNIQUEID:
+		//{
+		//	//获取证书颁发者唯一ID
+		//	// 获取扩展 "authorityKeyIdentifier"
+		//	X509_EXTENSION* extension = X509_get_ext(x509Cert, X509_get_ext_by_NID(x509Cert, NID_authority_key_identifier, -1));
+		//	if (extension == NULL) 
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("找不到颁发者密钥标识符 (Authority Key Identifier) 扩展\n");
+		//		break;
+		//	}
 
-			// 解析扩展数据
-			ASN1_OCTET_STRING* akid_octet_str = X509_EXTENSION_get_data(extension);
-			if (akid_octet_str == NULL) 
-			{
-				ret = index;
-				DEBUG_PRINT("无法获取颁发者密钥标识符 (Authority Key Identifier) 扩展数据\n");
-				break;
-			}
-			// 将证书颁发者唯一ID转换为 DER 编码格式 
-			derlen = i2d_ASN1_OCTET_STRING(akid_octet_str, &buf);
-			if (derlen < 0)
-			{
-				ret = index;
-				DEBUG_PRINT("Error: failed to convert subject key identifier to DER format\n");
-			}
-			*infoFlag = 1;
-			break;
-			/*const ASN1_BIT_STRING* issuerUniqueId = NULL;
-			const ASN1_BIT_STRING* subjectUniqueId = NULL;
-			X509_NAME* issuer = NULL;
-			issuer = X509_get_issuer_name(x509Cert);
-			if (!issuer)
-			{
-				ret = index;
-				DEBUG_PRINT("X509_get_issuer_name err\n");
-				break;
-			}
-			// 获取颁发者唯一ID字段
-			X509_get0_uids(x509Cert,&issuerUniqueId,&issuerUniqueId);
-			if (issuerUniqueId != NULL)
-			{
-				derlen = ASN1_STRING_length(issuerUniqueId);
-				if (derlen <= 0)
-				{
-					ret = index;
-					DEBUG_PRINT("ASN1_STRING_length err\n");
-					break;
-				}
-				memcpy(buf, ASN1_STRING_get0_data(issuerUniqueId), derlen);
-			}
-			else
-			{
-				ret = index;
-				DEBUG_PRINT("X509_get0_uids err\n");
-				break;
-			}*/
-		}
-		
-		case DEC_INDEX_SUBJECT_UNIQUEID: //主题唯一ID
-		{
-			/* 获取证书主题唯一ID */
-			// 获取扩展 "NID_subject_key_identifier"
-			X509_EXTENSION* extension = X509_get_ext(x509Cert, X509_get_ext_by_NID(x509Cert, NID_subject_key_identifier, -1));
-			if (extension == NULL)
-			{
-				ret = index;
-				DEBUG_PRINT("找不到持有者密钥标识符 (Authority Key Identifier) 扩展\n");
-				break;
-			}
+		//	// 解析扩展数据
+		//	ASN1_OCTET_STRING* akid_octet_str = X509_EXTENSION_get_data(extension);
+		//	if (akid_octet_str == NULL) 
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("无法获取颁发者密钥标识符 (Authority Key Identifier) 扩展数据\n");
+		//		break;
+		//	}
+		//	// 将证书颁发者唯一ID转换为 DER 编码格式 
+		//	derlen = i2d_ASN1_OCTET_STRING(akid_octet_str, &buf);
+		//	if (derlen < 0)
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("Error: failed to convert subject key identifier to DER format\n");
+		//	}
+		//	derlen -= 6;
+		//	memmove(der, der + 6, derlen);//去除tl
+		//	*infoFlag = 0;
+		//	break;
+		//	/*const ASN1_BIT_STRING* issuerUniqueId = NULL;
+		//	const ASN1_BIT_STRING* subjectUniqueId = NULL;
+		//	X509_NAME* issuer = NULL;
+		//	issuer = X509_get_issuer_name(x509Cert);
+		//	if (!issuer)
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("X509_get_issuer_name err\n");
+		//		break;
+		//	}
+		//	// 获取颁发者唯一ID字段
+		//	X509_get0_uids(x509Cert,&issuerUniqueId,&issuerUniqueId);
+		//	if (issuerUniqueId != NULL)
+		//	{
+		//		derlen = ASN1_STRING_length(issuerUniqueId);
+		//		if (derlen <= 0)
+		//		{
+		//			ret = index;
+		//			DEBUG_PRINT("ASN1_STRING_length err\n");
+		//			break;
+		//		}
+		//		memcpy(buf, ASN1_STRING_get0_data(issuerUniqueId), derlen);
+		//	}
+		//	else
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("X509_get0_uids err\n");
+		//		break;
+		//	}*/
+		//}
+		//
+		//case DEC_INDEX_SUBJECT_UNIQUEID: //主题唯一ID
+		//{
+		//	/* 获取证书主题唯一ID */
+		//	// 获取扩展 "NID_subject_key_identifier"
+		//	X509_EXTENSION* extension = X509_get_ext(x509Cert, X509_get_ext_by_NID(x509Cert, NID_subject_key_identifier, -1));
+		//	if (extension == NULL)
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("找不到持有者密钥标识符 (Authority Key Identifier) 扩展\n");
+		//		break;
+		//	}
 
-			// 解析扩展数据
-			ASN1_OCTET_STRING* akid_octet_str = X509_EXTENSION_get_data(extension);
-			if (akid_octet_str == NULL)
-			{
-				ret = index;
-				DEBUG_PRINT("无法获取持有者密钥标识符 (Authority Key Identifier) 扩展数据\n");
-				break;
-			}
-			// 将证书颁发者唯一ID转换为 DER 编码格式 
-			derlen = i2d_ASN1_OCTET_STRING(akid_octet_str, &buf);
-			if (derlen < 0)
-			{
-				ret = index;
-				DEBUG_PRINT("Error: failed to convert subject key identifier to DER format\n");
-			}
-			*infoFlag = 1;
-			break;
-			/*const ASN1_BIT_STRING* subjectUniqueId = NULL;
-			X509_NAME* subject = NULL;
-			subject = X509_get_subject_name(x509Cert);
-			if (!subject)
-			{
-				ret = index;
-				DEBUG_PRINT("X509_get_subject_name err\n");
-				break;
-			}
-			// 获取主题唯一ID字段
-			X509_get0_uids(x509Cert,&subjectUniqueId,&subjectUniqueId);
-			if (subjectUniqueId != NULL)
-			{
-				derlen = ASN1_STRING_length(subjectUniqueId);
-				if (derlen <= 0)
-				{
-					ret = index;
-					DEBUG_PRINT("ASN1_STRING_length err\n");
-					break;
-				}
-				memcpy(buf, ASN1_STRING_get0_data(subjectUniqueId), derlen);
-			}
-			else
-			{
-				ret = index;
-				DEBUG_PRINT("X509_get0_uids err\n");
-				break;
-			}*/
-		}
+		//	// 解析扩展数据
+		//	ASN1_OCTET_STRING* akid_octet_str = X509_EXTENSION_get_data(extension);
+		//	if (akid_octet_str == NULL)
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("无法获取持有者密钥标识符 (Authority Key Identifier) 扩展数据\n");
+		//		break;
+		//	}
+		//	// 将证书颁发者唯一ID转换为 DER 编码格式 
+		//	derlen = i2d_ASN1_OCTET_STRING(akid_octet_str, &buf);
+		//	if (derlen < 0)
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("Error: failed to convert subject key identifier to DER format\n");
+		//	}
+		//	derlen -= 4;
+		//	memmove(der, der + 4, derlen);//去除tl
+		//	*infoFlag = 0;
+		//	break;
+		//	/*const ASN1_BIT_STRING* subjectUniqueId = NULL;
+		//	X509_NAME* subject = NULL;
+		//	subject = X509_get_subject_name(x509Cert);
+		//	if (!subject)
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("X509_get_subject_name err\n");
+		//		break;
+		//	}
+		//	// 获取主题唯一ID字段
+		//	X509_get0_uids(x509Cert,&subjectUniqueId,&subjectUniqueId);
+		//	if (subjectUniqueId != NULL)
+		//	{
+		//		derlen = ASN1_STRING_length(subjectUniqueId);
+		//		if (derlen <= 0)
+		//		{
+		//			ret = index;
+		//			DEBUG_PRINT("ASN1_STRING_length err\n");
+		//			break;
+		//		}
+		//		memcpy(buf, ASN1_STRING_get0_data(subjectUniqueId), derlen);
+		//	}
+		//	else
+		//	{
+		//		ret = index;
+		//		DEBUG_PRINT("X509_get0_uids err\n");
+		//		break;
+		//	}*/
+		//}
 		//密钥用法
 		case DEC_INDEX_KEYUSAGE:
 		{
@@ -4328,6 +4335,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				DEBUG_PRINT("i2d_X509_NAME err\n");
 				break;
 			}
+			*infoFlag = 1;
 			break;
 		}
 		case DEC_INDEX_ISSUER: //Issuer 
@@ -4347,6 +4355,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				DEBUG_PRINT("i2d_X509_NAME err\n");
 				break;
 			}
+			*infoFlag = 1;
 			break;
 		}
 		
@@ -4355,7 +4364,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 		{
 			/* 获取证书扩展 */
 			X509_EXTENSION* ext = NULL;
-			ext = X509_get_ext(x509Cert, index);
+			ext = X509_get_ext(x509Cert, NULL);
 			if (ext == NULL)
 			{
 				ret = index;
@@ -4369,28 +4378,36 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				ret = index;
 				DEBUG_PRINT("Error: failed to convert extension to DER format\n");
 			}
+			*infoFlag = 1;
 			break;
 		}
-		case DEC_INDEX_AUTHORITYINFOACCESS: //颁发者信息访问地址
+		case DEC_INDEX_AUTHORITYINFOACCESS: //颁发者信息访问地址 OCSP
 		{
 			/* 获取证书颁发者信息访问地址 */
-			ACCESS_DESCRIPTION* authorityInfoAccess = NULL;
-			authorityInfoAccess = (ACCESS_DESCRIPTION*)X509_get_ext_d2i(x509Cert, NID_info_access, NULL, NULL);
+			STACK_OF(ACCESS_DESCRIPTION)* authorityInfoAccess = NULL;
+			authorityInfoAccess = (STACK_OF(ACCESS_DESCRIPTION)*)X509_get_ext_d2i(x509Cert, NID_info_access, NULL, NULL);
 			if (authorityInfoAccess == NULL)
 			{
 				ret = index;
 				DEBUG_PRINT("Error: failed to get authority info access from certificate\n");
 				break;
 			}
-			/* 将颁发者信息访问地址转换为 DER 编码格式 */
-			derlen = i2d_ACCESS_DESCRIPTION(authorityInfoAccess, &buf);
-			if (derlen < 0)
+			for (int i = 0; i < sk_ACCESS_DESCRIPTION_num((STACK_OF(ACCESS_DESCRIPTION)*)authorityInfoAccess); i++)
 			{
-				ret = index;
-				DEBUG_PRINT("Error: failed to convert authority info access to DER format\n");
+				ACCESS_DESCRIPTION* accessDecription = sk_ACCESS_DESCRIPTION_value(authorityInfoAccess, i);
+				/* 将颁发者信息访问地址转换为 DER 编码格式 */
+				derlen = i2d_ACCESS_DESCRIPTION(accessDecription, &buf);
+				if (derlen < 0)
+				{
+					ret = index;
+					DEBUG_PRINT("Error: failed to convert authority info access to DER format\n");
+				}
+				buf = der + derlen;
 			}
+			*infoFlag = 1;
 			break;
 		}
+		case DEC_INDEX_SUBJECT_UNIQUEID:
 		case DEC_INDEX_SUBJECTKEYID:
 		case DEC_INDEX_SUBJECTKEYIDENTIFIER: //主题密钥标识符
 		{
@@ -4410,26 +4427,35 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				ret = index;
 				DEBUG_PRINT("Error: failed to convert subject key identifier to DER format\n");
 			}
+			derlen -= 2;
+			memmove(der, der + 2, derlen);//去除tl
+			*infoFlag = 0;
 			break;
 		}
+		case DEC_INDEX_ISSUER_UNIQUEID:
 		case DEC_INDEX_AUTHORITYKEYIDENTIFIER: //颁发者密钥标识符
 		{
 			/* 获取证书颁发者密钥标识符 */
-			ASN1_OCTET_STRING* authorityKeyIdentifier = NULL;
-			authorityKeyIdentifier = (ASN1_OCTET_STRING*)X509_get_ext_d2i(x509Cert, NID_authority_key_identifier, NULL, NULL);
+			AUTHORITY_KEYID* authorityKeyIdentifier = NULL;
+			
+			authorityKeyIdentifier = (AUTHORITY_KEYID*)X509_get_ext_d2i(x509Cert, NID_authority_key_identifier, NULL, NULL);
 			if (authorityKeyIdentifier == NULL)
 			{
 				ret = index;
 				DEBUG_PRINT("Error: failed to get authority key identifier from certificate\n");
 				break;
 			}
+			
 			/* 将颁发者密钥标识符转换为 DER 编码格式 */
-			derlen = i2d_ASN1_OCTET_STRING(authorityKeyIdentifier, &buf);
+			derlen = i2d_AUTHORITY_KEYID(authorityKeyIdentifier, &buf);
 			if (derlen < 0)
 			{
 				ret = index;
 				DEBUG_PRINT("Error: failed to convert authority key identifier to DER format\n");
 			}
+			derlen -= 4;
+			memmove(der, der + 4, derlen);//去除tl
+			*infoFlag = 0;
 			break;
 		}
 		
@@ -4452,6 +4478,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				ret = index;
 				DEBUG_PRINT("Error: failed to convert subject alt name to DER format\n");
 			}
+			*infoFlag = 1;
 			break;
 		}
 		case DEC_INDEX_BASICCONSTRAINTS: //基本约束
@@ -4472,6 +4499,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				ret = index;
 				DEBUG_PRINT("Error: failed to convert basic constraints to DER format\n");
 			}
+			*infoFlag = 0;
 			break;
 		}
 
@@ -4493,6 +4521,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				ret = index;
 				DEBUG_PRINT("Error: failed to convert issuer alt name to DER format\n");
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_CRLNUMBER: //CRL 号码
@@ -4659,26 +4688,34 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				}
 			}
 			*/
+			* infoFlag = 1;
 			break;
 		}
 		case DEC_INDEX_CERTIFICATEPOLICIES: //证书策略
 		{
 			/* 获取证书证书策略 */
-			POLICYINFO* certificatePolicies = NULL;
-			certificatePolicies = (POLICYINFO*)X509_get_ext_d2i(x509Cert, NID_certificate_policies, NULL, NULL);
+			STACK_OF(POLICYINFO*) certificatePolicies = NULL;
+			certificatePolicies = (STACK_OF(POLICYINFO*))X509_get_ext_d2i(x509Cert, NID_certificate_policies, NULL, NULL);
 			if (certificatePolicies == NULL)
 			{
 				ret = index;
 				DEBUG_PRINT("Error: failed to get certificate policies from certificate\n");
 				break;
 			}
-			/* 将证书策略转换为 DER 编码格式 */
-			derlen = i2d_POLICYINFO(certificatePolicies, &buf);
-			if (derlen < 0)
+			for (int i = 0; i < sk_POLICYINFO_num((const STACK_OF(POLICYINFO)*)certificatePolicies); i++)
 			{
-				ret = index;
-				DEBUG_PRINT("Error: failed to convert certificate policies to DER format\n");
+				POLICYINFO* certificatePolicie= sk_POLICYINFO_value((const STACK_OF(POLICYINFO)*)certificatePolicies, i);
+				ASN1_OBJECT* policyIdentifier = certificatePolicie->policyid;
+				/* 将证书策略转换为 DER 编码格式 */
+				derlen = i2d_POLICYINFO(certificatePolicie, &buf);
+				if (derlen < 0)
+				{
+					ret = index;
+					DEBUG_PRINT("Error: failed to convert certificate policies to DER format\n");
+				}			
+				buf = der + derlen;
 			}
+			*infoFlag = 1;
 			break;
 		}
 		
@@ -4700,7 +4737,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
-
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_ISSUER_BUSINESSCATEGORY: //颁发者商业类别
@@ -4720,6 +4757,7 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
 		case DEC_INDEX_SUBJECT_BUSINESSCATEGORY: //商业类别
@@ -4739,11 +4777,9 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 				DEBUG_PRINT("X509_NAME_get_text_by_NID err\n");
 				break;
 			}
+			*infoFlag = 0;
 			break;
 		}
-
-
-
 		default:
 			ret = -1;
 			//DEBUG_PRINT("Error: invalid index number\n");
@@ -4798,6 +4834,74 @@ static int getCertInfo(unsigned char* cert, size_t certLen, size_t index, long* 
 
 	return ret;
 }
+#include "crypto/asn1.h"
+void parse_der_data2(const unsigned char* der_data, int der_length) 
+{
+	const unsigned char* p = der_data;
+	long len;
+	int tag, pclass;
+
+	while (der_length > 0) 
+	{
+		int ret = ASN1_get_object(&p, &len, &tag, &pclass, der_length);
+
+		if (ret < 0)//& 0x80) {
+		{
+			fprintf(stderr, "Error parsing DER data\n");
+			return;
+		}
+		if (true)
+		{
+
+		}
+		printf("值：");
+		for (int i = 0; i < len; i++) {
+			printf("%02X", p[i]);
+		}
+		printf("\n");
+
+		p += len;
+		der_length -= len;
+	}
+}
+
+
+void traverse_der_data(const unsigned char* der_data, int der_length) 
+{
+	const unsigned char* p = der_data;
+	long len;
+	int tag, pclass;
+
+	while (p - der_data < der_length) {
+		int ret = ASN1_get_object(&p, &len, &tag, &pclass, der_length);
+
+		if (ret & 0x80)
+		{
+			fprintf(stderr, "Error parsing DER data\n");
+			return;
+		}
+
+		// 打印标签和长度
+		printf("标签：%d，长度：%ld\n", tag, len);
+
+		// 解析 CONSTRUCTED 类型
+		if (pclass == V_ASN1_CONSTRUCTED) 
+		{
+			traverse_der_data(p, len);  // 递归解析值部分
+		}
+		else 
+		{
+			// 打印值部分
+			printf("值：");
+			for (int i = 0; i < len; i++) {
+				printf("%02X ", p[i]);
+			}
+			printf("\n");
+		}
+
+		p += len;  // 移动指针到下一个对象
+	}
+}
 void testGetCertInfo()
 {
 	unsigned char cert[4096] = { 0 };
@@ -4809,7 +4913,7 @@ void testGetCertInfo()
 	size_t infoLen = 4096;
 	long iInfo = 0;
 	size_t flag;
-	for (size_t i = 0; i < 500; i++)
+	for (size_t i = 0; i < 600; i++)
 	{
 		iInfo = 0;
 		int ret = getCertInfo(cert, certLen, i, &iInfo, info, &infoLen,&flag);
@@ -4820,6 +4924,10 @@ void testGetCertInfo()
 		else
 		{
 			DEBUG_PRINT("getCertInfo ok\n");
+			//traverse_der_data(info, infoLen);
+
+			
+			printf("\n");
 		}
 	}
 
