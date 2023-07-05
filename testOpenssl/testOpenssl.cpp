@@ -1478,7 +1478,7 @@ int sm2Encrypt(const char* pubKeyHex, const char* data, size_t dataLen, unsigned
 	EVP_PKEY_CTX_ctrl(pctx, -1, EVP_PKEY_OP_TYPE_CRYPT, EVP_PKEY_CTRL_MD, 0, (void*)EVP_sm3());
 
 	/*Set sm2 encdata format, 0 for ASN1(default), 1 for C1C3C2*/
-	/*EVP_PKEY_CTX_set_sm2_encdata_format(ctx, 1);*/
+	EVP_PKEY_CTX_set_sm2_encdata_format(pctx, 0);
 
 	//EVP_PKEY_CTX_set_sm2_encdata_format(pctx, 1);
 
@@ -1604,6 +1604,7 @@ int sm2Decrypt(const char* privKeyHex, unsigned char* cipher, size_t cipherLen, 
 	/*Set SM2 Encrypt EVP_MD. If it not set, SM2 default is EVP_sm3(), Other curve default is sha1*/
 	EVP_PKEY_CTX_ctrl(pctx, -1, EVP_PKEY_OP_TYPE_CRYPT, EVP_PKEY_CTRL_MD, 0, (void*)EVP_sm3());
 
+	EVP_PKEY_CTX_set_sm2_encdata_format(pctx, 0);
 	/*in = OPENSSL_malloc(inlen);
 	if (!in)
 	{
@@ -1884,21 +1885,21 @@ static PKCS7* p7_sign_data(const unsigned char* data, size_t data_len, EVP_PKEY*
 			break;
 		}
 		in = BIO_new_mem_buf(data, data_len);
-		if (in)
+		if (!in)
 		{
 			ret = 2;
 			DEBUG_PRINT("BIO_new_mem_buf err\n");
 			break;
 		}
-		p7 = PKCS7_new();
+		/*p7 = PKCS7_new();
 		if (!p7)
 		{
 			ret = 3;
 			DEBUG_PRINT("PKCS7_new err\n");
 			break;
-		}
+		}*/
 		certs = sk_X509_new_null();
-		if (true)
+		if (!certs)
 		{
 			ret = 4;
 			DEBUG_PRINT("sk_X509_new_null err\n");
@@ -3142,7 +3143,7 @@ void getSM2Key()
 
 	do
 	{
-		pemFile = BIO_new_file("./certs/SS1.key", "r");
+		pemFile = BIO_new_file("./certs/SS.key", "r");
 		if (!pemFile)
 		{
 			DEBUG_PRINT("BIO_new_file err\n");
@@ -4904,6 +4905,7 @@ void traverse_der_data(const unsigned char* der_data, int der_length)
 }
 void testGetCertInfo()
 {
+	//x509 -in ./certs/_.csdn.net.crt -text -noout
 	unsigned char cert[4096] = { 0 };
 	size_t certLen = 4096;
 	FILE* fp = fopen("./certs/_.zhihu.com.crt", "rb");
@@ -4932,10 +4934,341 @@ void testGetCertInfo()
 	}
 
 }
+
+static X509_CRL* PEMorDER_to_x509_crl(const unsigned char* crlData, size_t crlDataLen)
+{
+	X509_CRL* crl = NULL;
+	BIO* bio = NULL;
+	do
+	{
+		if (crlData[0]=='-' && crlData[1]=='-')
+		{
+			// 将 PEM 格式的字节数组解码为字符串形式
+			bio = BIO_new_mem_buf(crlData, crlDataLen);
+			crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
+		}
+		else
+		{
+			// 将 DER 格式的字节数组解码为字符串形式
+			const unsigned char* p = crlData;
+			X509_CRL* crl = d2i_X509_CRL(NULL, &p, (long)crlDataLen);
+			crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
+		}
+		
+	} while (0);
+	if (bio)
+	{
+		// 释放 BIO 对象
+		BIO_free(bio); bio = NULL;
+	}
+	return crl;
+}
+
+int sm2Enveloped(const char* privKeyHex, unsigned char* data, size_t dataLen, size_t flags, size_t cipherFlag, unsigned char* signPemCert, size_t signPemCertLen ,unsigned char* envPemCert, size_t envPemCertLen, unsigned char* pemCrl, size_t pemCrlLen, unsigned char* enveloped, size_t* envelopedLen)
+{
+	//smime -sign -signer ./certs/SS.crt -inkey ./certs/SS.key -in ./certs/data.txt -encrypt  -sm4-ecb -outform PEM -out encrypt_signed.p7   ./certs/SE.crt
+	int ret = -1;
+	EVP_PKEY* pkey = NULL;
+	X509* signX509Cert = NULL;
+	X509* envX509Cert = NULL;
+	X509_CRL* crl = NULL;
+	BIO* signCertBio = NULL;	
+	BIO* envCertBio = NULL;
+	PKCS7* p7 = NULL;	
+	STACK_OF(X509)* encerts = NULL;
+	STACK_OF(X509)* signcerts = NULL;
+	const EVP_CIPHER* cipher = NULL;
+	BIO* in = NULL;
+	unsigned char* buf = NULL;
+	int len;
+	do
+	{
+		//参数检查
+
+		if (!privKeyHex || !data || !dataLen || !signPemCert || signPemCertLen <=0 || !envPemCert || envPemCertLen <= 0 || !enveloped || !envelopedLen)
+		{
+			ret = 1;
+			DEBUG_PRINT("Error: invalid parameters\n");
+			break;
+		}
+		//加载私钥
+		pkey = getEvpKey(privKeyHex);
+		if (!pkey)
+		{
+			ret = 2;
+			DEBUG_PRINT("Error: failed to load private key\n");
+			break;
+		}
+		signCertBio = BIO_new_mem_buf(signPemCert, signPemCertLen);
+		if (!signCertBio)
+		{
+			ret = 3;
+			DEBUG_PRINT("BIO_new_mem_buf failed.\n");
+			break;
+		}
+		envCertBio = BIO_new_mem_buf(envPemCert, envPemCertLen);
+		if (!envCertBio)
+		{
+			ret = 3;
+			DEBUG_PRINT("BIO_new_mem_buf failed.\n");
+			break;
+		}
+		signX509Cert = PEM_read_bio_X509(signCertBio, NULL, 0, NULL);
+		if ( !signX509Cert)
+		{
+			ret = 4;
+			DEBUG_PRINT("PEM_read_bio_X509 failed.\n");
+			break;
+		}
+		envX509Cert = PEM_read_bio_X509(envCertBio, NULL, 0, NULL);
+		if (!envX509Cert)
+		{
+			ret = 4;
+			DEBUG_PRINT("PEM_read_bio_X509 failed.\n");
+			break;
+		}
+
+		in = BIO_new_mem_buf(data, dataLen);
+		if (!in)
+		{
+			ret = 5;
+			DEBUG_PRINT("BIO_new_mem_buf err\n");
+			break;
+		}
+		/*p7 = PKCS7_new();
+		if (!p7)
+		{
+			ret = 6;
+			DEBUG_PRINT("PKCS7_new err\n");
+			break;
+		}*/
+		signcerts = sk_X509_new_null();
+		encerts = sk_X509_new_null();
+		if (!encerts ||!signcerts)
+		{
+			ret = 7;
+			DEBUG_PRINT("sk_X509_new_null err\n");
+			break;
+		}
+		if (sk_X509_push(encerts, envX509Cert) < 0)
+		{
+			ret = 8;
+			DEBUG_PRINT("sk_X509_push envX509Cert err\n");
+			break;
+		}
+		if (sk_X509_push(signcerts, signX509Cert) < 0)
+		{
+			ret = 8;
+			DEBUG_PRINT("sk_X509_push signX509Cert err\n");
+			break;
+		}
+
+		switch (cipherFlag)
+		{
+			case 0:
+				cipher = EVP_sm4_ecb();
+				break;
+			case 1:
+				cipher = EVP_sm4_cbc();
+				break;
+			case 2:
+				cipher = EVP_sm4_ofb();
+				break;
+			case 3:
+				cipher = EVP_sm4_cfb();
+				break;
+		default:
+			ret = 9;
+			DEBUG_PRINT("cipherFlag err\n");
+			break;
+		}
+		crl=PEMorDER_to_x509_crl(pemCrl, pemCrlLen);
+		if (flags & PKCS7_NOSIGS)
+		{
+			p7 = PKCS7_encrypt(encerts, in, cipher, flags);		
+		}
+		else
+		{
+			p7 = PKCS7_encryptEx(encerts, in, cipher, crl,signX509Cert, pkey, NULL, flags);
+		}
+		
+		if (!p7)
+		{
+			ret = 9;
+			DEBUG_PRINT("PKCS7_encrypt err\n");
+			break;
+		}
+		len = i2d_PKCS7(p7, &buf); // 编码 PKCS7 对象为 DER 格式
+		// 现在 buf 中包含编码后的数据，长度为 len
+		if (len > *envelopedLen)
+		{
+			ret = 10;
+			DEBUG_PRINT("signData buffer is too small.\n");
+			break;
+		}
+		memcpy(enveloped, buf, len);
+		*envelopedLen = len;
+
+
+#ifdef _DEBUG
+		//将p7转为PEM
+		BIO* out = BIO_new(BIO_s_mem());
+		if (!out)
+		{
+			ret = 7;
+			DEBUG_PRINT("BIO_new error\n");
+			break;
+		}
+		PEM_write_bio_PKCS7(out, p7);
+		char* p7_pem = NULL;
+		int p7_pem_len = BIO_get_mem_data(out, &p7_pem);
+		p7_pem[p7_pem_len] = 0;
+		DEBUG_PRINT("p7_pem_len = %d\n", p7_pem_len);
+		DEBUG_PRINT("p7_pem = %s\n", p7_pem);
+		BIO_free(out);
+		// 保存P7签名数据到文件
+		FILE* fp = fopen("sm2_enveloped.p7", "wb");
+		i2d_PKCS7_fp(fp, p7);
+		fclose(fp);
+#endif // DEBUG	
+		ret = 0;
+	} while (0);
+	//释放内存 
+	if (pkey)
+	{
+		EVP_PKEY_free(pkey);
+		pkey = NULL;
+	}
+	if (signX509Cert)
+	{
+		X509_free(signX509Cert);
+		signX509Cert = NULL;
+	}
+	if (envX509Cert)
+	{
+		X509_free(envX509Cert);
+		envX509Cert = NULL;
+	}
+	if (signCertBio)
+	{
+		BIO_free(signCertBio);
+		signCertBio = NULL;
+	}
+	if (envCertBio)
+	{
+		BIO_free(envCertBio);
+		envCertBio = NULL;
+	}
+	if (in)
+	{
+		BIO_free(in);
+		in = NULL;
+	}
+	if (encerts)
+	{
+		sk_X509_free(encerts);
+		encerts = NULL;
+	}
+	if (p7)
+	{
+		PKCS7_free(p7);
+		p7 = NULL;
+	}
+	if (crl)
+	{
+		X509_CRL_free(crl);
+		crl = NULL;
+	}
+	return ret;
+}
+
+
+
+//制作SM2 数字信封
+void testEnveloped()
+{
+	int ret = 0;
+	const char* privKeyHex = "30770201010420363FFCAA72C0C728E9B2C5D16F840258EDB98D803B90395C4E77C44A2C7090FAA00A06082A811CCF5501822DA14403420004E20234542883F1F007C1D008A5251C537E64AAE2C456D4F2C44C1DFC15BE1E19382E05792FBA09D68E32E85CD8362D6233CCABBA5A5E5426983747766921C35E";
+	const char* pubKeyHex = "04e20234542883f1f007c1d008a5251c537e64aae2c456d4f2c44c1dfc15be1e19382e05792fba09d68e32e85cd8362d6233ccabba5a5e5426983747766921c35e";
+	const char* data = "abc";
+	size_t dataLen = strlen(data);
+	unsigned char enveloped[4096*2] = { 0 };
+	size_t envelopedLen = 4096*2;
+	unsigned char cert[4096] = { 0 };
+	size_t certLen = 4096;
+	unsigned char signCert[4096] = { 0 };
+	size_t signCertLen = 4096;
+	unsigned char caCert[4096] = { 0 };
+	size_t caCertLen = 4096;
+	int flags;// = PKCS7_NOCERTS | PKCS7_DETACHED;// | PKCS7_NOATTR; //|  PKCS7_DETACHED  | PKCS7_NOCERTS| PKCS7_STREAM | PKCS7_NOCHAIN  | PKCS7_NOSMIMECAP | PKCS7_NOSMIMECAP:不包含加密算法能力集
+	FILE* fp = fopen("./certs/SE.crt", "rb");
+	certLen = fread(cert, 1, 4096, fp);
+	fclose(fp);
+	BIO* certBio = NULL;
+	X509_STORE* st = NULL;
+	st = X509_STORE_new();
+	if (!st)
+	{
+		ret = 9;
+		DEBUG_PRINT("X509_STORE_new err\n");
+		return;
+	}
+	certBio = BIO_new_file("./certs/CA.crt", "r");//BIO_new_file("./certs/CA.crt", "r");
+	if (!certBio)
+	{
+		ret = 9;
+		DEBUG_PRINT("BIO_new_file err\n");
+		X509_STORE_free(st);
+		return;
+	}
+	caCertLen = BIO_read(certBio, caCert, 4096);
+	BIO_free(certBio); certBio = NULL;
+
+	certBio = BIO_new_file("./certs/SS.crt", "r");//BIO_new_file("./certs/CA.crt", "r");
+	if (!certBio)
+	{
+		ret = 9;
+		DEBUG_PRINT("BIO_new_file err\n");
+		X509_STORE_free(st);
+		return;
+	}
+	signCertLen = BIO_read(certBio, signCert, 4096);
+	BIO_free(certBio); certBio = NULL;
+
+	st = addCertToStore(st, caCert, caCertLen);
+	if (!st)
+	{
+		ret = 10;
+		DEBUG_PRINT("addCertToStore err\n");
+		X509_STORE_free(st);
+		return;
+	}
+	flags = PKCS7_DETACHED | PKCS7_SM2_GMT0010;
+	//SM2 P7签名
+	ret = sm2Enveloped(privKeyHex, (unsigned char*)data, dataLen, flags,0,signCert, signCertLen, cert, certLen, NULL, 0, enveloped, &envelopedLen);
+	if (ret)
+	{
+		DEBUG_PRINT("sm2SignData err,ret:%08x\n", ret);
+		X509_STORE_free(st);
+		return;
+	}
+	//flags = 0;// PKCS7_NOVERIFY;// PKCS7_DETACHED | PKCS7_NOCHAIN | PKCS7_NOSMIMECAP; //| PKCS7_STREAM
+	////flags = PKCS7_NOCHAIN | PKCS7_NOCRL;
+	////SM2 P7验签
+	//ret = sm2VerifySignData((unsigned char*)data, dataLen, flags, cert, certLen, signData, signDataLen, st);
+	//if (ret)
+	//{
+	//	DEBUG_PRINT("sm2VerifySignData err,ret:%08x\n", ret);
+	//	X509_STORE_free(st);
+	//	return;
+	//}
+}
+
 int main(int argc, char* argv[])
 {
 	ERR_load_ERR_strings();
 	ERR_load_crypto_strings();
+	testEnveloped();
 	//-s 127.0.0.1:4433 --gmssl --verify -ca ./certs/CA.crt
 	//testVerifyP7();
 	//testAsn1();
@@ -4980,7 +5313,11 @@ int main(int argc, char* argv[])
 
 
 	ret = sm2Encrypt(pubKeyHex, data, dataLen, enData, &enDataLen);
-
+#ifdef _DEBUG
+	FILE* fp = fopen("sm2Encrypt.bin", "wb");
+	fwrite(enData,1, enDataLen,fp);
+	fclose(fp);
+#endif // DEBUG	
 	ret = sm2Decrypt(privKeyHex, enData, enDataLen, deData, &deDataLen);
 
 	ret = sm2Sign(privKeyHex, (unsigned char*)data, dataLen, sign, &signLen);
