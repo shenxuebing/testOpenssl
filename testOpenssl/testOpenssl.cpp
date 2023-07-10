@@ -3143,7 +3143,7 @@ void getSM2Key()
 
 	do
 	{
-		pemFile = BIO_new_file("./certs/SS.key", "r");
+		pemFile = BIO_new_file("./certs/SE.key", "r");
 		if (!pemFile)
 		{
 			DEBUG_PRINT("BIO_new_file err\n");
@@ -4941,20 +4941,22 @@ static X509_CRL* PEMorDER_to_x509_crl(const unsigned char* crlData, size_t crlDa
 	BIO* bio = NULL;
 	do
 	{
-		if (crlData[0]=='-' && crlData[1]=='-')
+		if (crlData && crlDataLen >0)
 		{
-			// 将 PEM 格式的字节数组解码为字符串形式
-			bio = BIO_new_mem_buf(crlData, crlDataLen);
-			crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
-		}
-		else
-		{
-			// 将 DER 格式的字节数组解码为字符串形式
-			const unsigned char* p = crlData;
-			X509_CRL* crl = d2i_X509_CRL(NULL, &p, (long)crlDataLen);
-			crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
-		}
-		
+			if (crlData[0] == '-' && crlData[1] == '-')
+			{
+				// 将 PEM 格式的字节数组解码为字符串形式
+				bio = BIO_new_mem_buf(crlData, crlDataLen);
+				crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
+			}
+			else
+			{
+				// 将 DER 格式的字节数组解码为字符串形式
+				const unsigned char* p = crlData;
+				X509_CRL* crl = d2i_X509_CRL(NULL, &p, (long)crlDataLen);
+				crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
+			}
+		}			
 	} while (0);
 	if (bio)
 	{
@@ -4963,7 +4965,7 @@ static X509_CRL* PEMorDER_to_x509_crl(const unsigned char* crlData, size_t crlDa
 	}
 	return crl;
 }
-
+//sm2制作数字信封
 int sm2Enveloped(const char* privKeyHex, unsigned char* data, size_t dataLen, size_t flags, size_t cipherFlag, unsigned char* signPemCert, size_t signPemCertLen ,unsigned char* envPemCert, size_t envPemCertLen, unsigned char* pemCrl, size_t pemCrlLen, unsigned char* enveloped, size_t* envelopedLen)
 {
 	//smime -sign -signer ./certs/SS.crt -inkey ./certs/SS.key -in ./certs/data.txt -encrypt  -sm4-ecb -outform PEM -out encrypt_signed.p7   ./certs/SE.crt
@@ -5181,8 +5183,206 @@ int sm2Enveloped(const char* privKeyHex, unsigned char* data, size_t dataLen, si
 	}
 	return ret;
 }
+//sm2解数字信封
+int sm2VerifyEnveloped(unsigned char* enveloped, size_t envelopedLen,const char* privKeyHex, size_t flags, unsigned char* signPemCert, size_t signPemCertLen, unsigned char* envPemCert, size_t envPemCertLen, X509_STORE* st,unsigned char* data, size_t* dataLen)
+{
+	int ret = -1;
+	EVP_PKEY* pkey = NULL;
+	X509* signX509Cert = NULL;
+	X509* envX509Cert = NULL;
+	BIO* p7Bio = NULL;
+	BIO* signCertBio = NULL;
+	BIO* envCertBio = NULL;
+	PKCS7* p7 = NULL;
+	STACK_OF(X509)* encerts = NULL;
+	STACK_OF(X509)* signcerts = NULL;
+	
+	BIO* out = NULL;
+	unsigned char* buf = NULL;
+	int len;
+	do
+	{
+		//参数检查
+
+		if (!enveloped || !envelopedLen || !privKeyHex || !signPemCert || signPemCertLen <= 0 || !envPemCert || envPemCertLen <= 0 || !data || !dataLen)
+		{
+			ret = 1;
+			DEBUG_PRINT("Error: invalid parameters\n");
+			break;
+		}
+		//将signData转为BIO	
+		p7Bio = BIO_new_mem_buf(enveloped, envelopedLen);
+		if (!p7Bio)
+		{
+			DEBUG_PRINT("BIO_new_mem_buf err\n");
+			ret = 3;
+			break;
+		}
 
 
+		//判断signData是DER还是PEM格式
+		if (enveloped[0] == '-' && enveloped[1] == '-')
+		{
+			//PEM格式
+			p7 = PEM_read_bio_PKCS7(p7Bio, NULL, NULL, NULL);
+			if (!p7)
+			{
+				ret = 4;
+				DEBUG_PRINT("PEM_read_bio_PKCS7 err\n");
+				break;
+			}
+		}
+		else
+		{
+			//DER格式
+			p7 = d2i_PKCS7_bio(p7Bio, NULL);
+			if (!p7)
+			{
+				ret = 4;
+				DEBUG_PRINT("d2i_PKCS7_bio err\n");
+				break;
+			}
+		}
+
+		//加载私钥
+		pkey = getEvpKey(privKeyHex);
+		if (!pkey)
+		{
+			ret = 2;
+			DEBUG_PRINT("Error: failed to load private key\n");
+			break;
+		}
+		signCertBio = BIO_new_mem_buf(signPemCert, signPemCertLen);
+		if (!signCertBio)
+		{
+			ret = 3;
+			DEBUG_PRINT("BIO_new_mem_buf failed.\n");
+			break;
+		}
+		envCertBio = BIO_new_mem_buf(envPemCert, envPemCertLen);
+		if (!envCertBio)
+		{
+			ret = 3;
+			DEBUG_PRINT("BIO_new_mem_buf failed.\n");
+			break;
+		}
+		signX509Cert = PEM_read_bio_X509(signCertBio, NULL, 0, NULL);
+		if (!signX509Cert)
+		{
+			ret = 4;
+			DEBUG_PRINT("PEM_read_bio_X509 failed.\n");
+			break;
+		}
+		envX509Cert = PEM_read_bio_X509(envCertBio, NULL, 0, NULL);
+		if (!envX509Cert)
+		{
+			ret = 4;
+			DEBUG_PRINT("PEM_read_bio_X509 failed.\n");
+			break;
+		}
+
+		signcerts = sk_X509_new_null();
+		encerts = sk_X509_new_null();
+		if (!encerts || !signcerts)
+		{
+			ret = 7;
+			DEBUG_PRINT("sk_X509_new_null err\n");
+			break;
+		}
+		if (sk_X509_push(encerts, envX509Cert) < 0)
+		{
+			ret = 8;
+			DEBUG_PRINT("sk_X509_push envX509Cert err\n");
+			break;
+		}
+		if (sk_X509_push(signcerts, signX509Cert) < 0)
+		{
+			ret = 8;
+			DEBUG_PRINT("sk_X509_push signX509Cert err\n");
+			break;
+		}
+		out = BIO_new(BIO_s_mem());
+		
+		if (flags & PKCS7_NOSIGS)
+		{
+			ret = PKCS7_decrypt(p7, pkey, envX509Cert,out,flags);
+		}
+		else
+		{
+			ret = PKCS7_decryptEx(p7, pkey, envX509Cert, signcerts, st,out, flags);
+		}
+
+		if (!ret)
+		{
+			ret = 9;
+			DEBUG_PRINT("PKCS7_decrypt err\n");
+			break;
+		}
+		char* outData = NULL;
+		int outDataLen = BIO_get_mem_data(out, &outData);
+		if (*dataLen < outDataLen)
+		{
+			ret = 10;
+			DEBUG_PRINT("data buffer is too small.\n");
+			break;
+		}
+		else
+		{
+			memcpy(data,outData,outDataLen);
+			*dataLen = outDataLen;
+			data[outDataLen] = 0;
+		}
+
+
+#ifdef _DEBUG
+		DEBUG_PRINT("data:%s\n",data);
+#endif // DEBUG	
+		ret = 0;
+	} while (0);
+	//释放内存 
+	if (pkey)
+	{
+		EVP_PKEY_free(pkey);
+		pkey = NULL;
+	}
+	if (signX509Cert)
+	{
+		X509_free(signX509Cert);
+		signX509Cert = NULL;
+	}
+	if (envX509Cert)
+	{
+		X509_free(envX509Cert);
+		envX509Cert = NULL;
+	}
+	if (signCertBio)
+	{
+		BIO_free(signCertBio);
+		signCertBio = NULL;
+	}
+	if (envCertBio)
+	{
+		BIO_free(envCertBio);
+		envCertBio = NULL;
+	}
+	if (out)
+	{
+		BIO_free(out);
+		out = NULL;
+	}
+	if (encerts)
+	{
+		sk_X509_free(encerts);
+		encerts = NULL;
+	}
+	if (p7)
+	{
+		PKCS7_free(p7);
+		p7 = NULL;
+	}
+	
+	return ret;
+}
 
 //制作SM2 数字信封
 void testEnveloped()
@@ -5200,6 +5400,8 @@ void testEnveloped()
 	size_t signCertLen = 4096;
 	unsigned char caCert[4096] = { 0 };
 	size_t caCertLen = 4096;
+	unsigned char outData[4096] = { 0 };
+	size_t outDataLen = 4096;
 	int flags;// = PKCS7_NOCERTS | PKCS7_DETACHED;// | PKCS7_NOATTR; //|  PKCS7_DETACHED  | PKCS7_NOCERTS| PKCS7_STREAM | PKCS7_NOCHAIN  | PKCS7_NOSMIMECAP | PKCS7_NOSMIMECAP:不包含加密算法能力集
 	FILE* fp = fopen("./certs/SE.crt", "rb");
 	certLen = fread(cert, 1, 4096, fp);
@@ -5243,7 +5445,7 @@ void testEnveloped()
 		X509_STORE_free(st);
 		return;
 	}
-	flags = PKCS7_DETACHED | PKCS7_SM2_GMT0010;
+	flags = PKCS7_DETACHED | PKCS7_SM2_GMT0010 | PKCS7_NOCERTS;
 	//SM2 P7签名
 	ret = sm2Enveloped(privKeyHex, (unsigned char*)data, dataLen, flags,0,signCert, signCertLen, cert, certLen, NULL, 0, enveloped, &envelopedLen);
 	if (ret)
@@ -5252,6 +5454,16 @@ void testEnveloped()
 		X509_STORE_free(st);
 		return;
 	}
+	//PEM 转DER pkcs8 -topk8 -inform PEM -outform DER -in SE.key -out SE_der.key
+	const char* envPrivKeyHex = "307702010104201FE43EE2230A27F6983D9379B997613F04C863397C43690A7DB82412B92056A5A00A06082A811CCF5501822DA144034200045FA9337FAA5794771104A08273FD2E1E15BDD8B2045A4C8AC6B82EB3C3508605EECAC862EA984AAE66AC8DD902DE8997AA903E350B8A762F21ADB6F3931E2E6D";
+	ret = sm2VerifyEnveloped(enveloped, envelopedLen, envPrivKeyHex, flags, signCert, signCertLen, cert, certLen, st, outData, &outDataLen);
+	if (ret)
+	{
+		DEBUG_PRINT("sm2VerifyEnveloped err,ret:%08x\n", ret);
+		X509_STORE_free(st);
+		return;
+	}
+
 	//flags = 0;// PKCS7_NOVERIFY;// PKCS7_DETACHED | PKCS7_NOCHAIN | PKCS7_NOSMIMECAP; //| PKCS7_STREAM
 	////flags = PKCS7_NOCHAIN | PKCS7_NOCRL;
 	////SM2 P7验签
