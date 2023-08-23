@@ -1,0 +1,7 @@
+/.vs/testOpenssl/v17/ipch/AutoPCH/1bd7f0b5bf24ef77/*.ipch
+*.ipch
+*.obj
+*.tlog
+/testOpenssl/Debug
+/Debug
+/.vs/testOpenssl

@@ -5384,6 +5384,184 @@ int sm2VerifyEnveloped(unsigned char* enveloped, size_t envelopedLen,const char*
 	return ret;
 }
 
+//SM4加密
+int sm4EcbEncrypt(unsigned char* key, unsigned char* data, size_t dataLen, unsigned char* outData, size_t* outDataLen)
+{
+	int ret = 0;
+	EVP_CIPHER_CTX* ctx = NULL;
+	const EVP_CIPHER* cipher = NULL;
+	int outLen = 0;
+	int tmpLen = 0;
+	do
+	{
+		if (!key || !data || !outData || !outDataLen || *outDataLen < dataLen)
+		{
+			ret = 1;
+			DEBUG_PRINT("param err\n");
+			break;
+		}
+		
+		//加载密钥
+		ctx = EVP_CIPHER_CTX_new();
+		if (!ctx)
+		{
+			ret = 2;
+			DEBUG_PRINT("EVP_CIPHER_CTX_new err\n");
+			break;
+		}
+		cipher = EVP_sm4_ecb();
+		if (!cipher)
+		{
+			ret = 3;
+			DEBUG_PRINT("EVP_sm4_ecb err\n");
+			break;
+		}
+		ret = EVP_EncryptInit_ex(ctx, cipher, NULL, key, NULL);
+		if (ret != 1)
+		{
+			ret = 4;
+			DEBUG_PRINT("EVP_EncryptInit_ex err\n");
+			break;
+		}
+		ret = EVP_CIPHER_CTX_set_padding(ctx, EVP_PADDING_PKCS7);
+		if (ret != 1)
+		{
+			ret = 5;
+			DEBUG_PRINT("EVP_CIPHER_CTX_set_padding err\n");
+			break;
+		}
+		ret = EVP_EncryptUpdate(ctx, outData, &outLen, data, dataLen);
+		if (ret != 1)
+		{
+			ret = 8;
+			DEBUG_PRINT("EVP_EncryptUpdate");
+			break;
+		}
+		ret=EVP_EncryptFinal_ex(ctx, outData + outLen, &tmpLen);
+		if (ret != 1)
+		{
+			ret = 9;
+			DEBUG_PRINT("EVP_EncryptFinal_ex");
+			break;
+		}
+		*outDataLen = outLen + tmpLen;
+		ret = 0;
+
+	} while (0);
+	if (ctx)
+	{
+		EVP_CIPHER_CTX_free(ctx);
+		ctx = NULL;
+	}
+	return ret;
+}
+
+//SM4 ECB模式解密
+int sm4EcbDecrypt(unsigned char* key, unsigned char* data, size_t dataLen, unsigned char* outData, size_t* outDataLen)
+{
+	int ret = 0;
+	EVP_CIPHER_CTX* ctx = NULL;
+	const EVP_CIPHER* cipher = NULL;
+	int outLen = 0;
+	int tmpLen = 0;
+	do
+	{
+		if (!key || !data || !outData || !outDataLen || *outDataLen < dataLen)
+		{
+			ret = 1;
+			DEBUG_PRINT("param err\n");
+			break;
+		}
+		//加载密钥
+		ctx = EVP_CIPHER_CTX_new();
+		if (!ctx)
+		{
+			ret = 2;
+			DEBUG_PRINT("EVP_CIPHER_CTX_new err\n");
+			break;
+		}
+		cipher = EVP_sm4_ecb();
+		if (!cipher)
+		{
+			ret = 3;
+			DEBUG_PRINT("EVP_sm4_ecb err\n");
+			break;
+		}
+		ret = EVP_DecryptInit_ex(ctx, cipher, NULL, key, NULL);
+		if (ret != 1)
+		{
+			ret = 4;
+			DEBUG_PRINT("EVP_DecryptInit_ex err\n");
+			break;
+		}
+		ret = EVP_CIPHER_CTX_set_padding(ctx, EVP_PADDING_PKCS7);
+		if (ret != 1)
+		{
+			ret = 5;
+			DEBUG_PRINT("EVP_CIPHER_CTX_set_padding err\n");
+			break;
+		}		
+		ret = EVP_DecryptUpdate(ctx, outData, &outLen, data, dataLen);
+		if (ret != 1)
+		{
+			ret = 8;
+			DEBUG_PRINT("EVP_DecryptUpdate");
+			break;
+		}
+		ret = EVP_DecryptFinal_ex(ctx, outData + outLen, &tmpLen);
+		if (ret != 1)
+		{
+			ret = 9;
+			DEBUG_PRINT("EVP_DecryptFinal_ex");
+			break;
+		}
+		*outDataLen = outLen + tmpLen;
+		ret = 0;
+
+	} while (0);
+	if (ctx)
+	{
+		EVP_CIPHER_CTX_free(ctx);
+		ctx = NULL;
+	}
+	return ret;
+}
+
+
+
+
+
+//SM4 ECB模式加密
+int testSm4EcbEncrypt()
+{
+	int ret = 0;
+	unsigned char key[] = { 1,2,3 };
+	const char* data = "0123456789abcd23123123132135151532202.02.02.01021213521352132";
+	int dataLen = strlen(data);
+	unsigned char enData[128] = {0};
+	size_t enDataLen = 128;
+	ret = sm4EcbEncrypt(key, (unsigned char*)data, dataLen, enData, &enDataLen);
+	if (ret != 0)
+	{
+		DEBUG_PRINT("sm4EcbEncrypt err\n");
+		return ret;
+	}
+	DEBUG_PRINT("enData:%s\n", bin2hex(enData,enDataLen));
+
+	unsigned char deData[128] = { 0 };
+	size_t deDataLen = 128;
+	ret=sm4EcbDecrypt(key, enData, enDataLen, deData, &deDataLen);
+	if (ret)
+	{
+		DEBUG_PRINT("sm4EcbDecrypt err\n");
+		return ret;
+	}
+	DEBUG_PRINT("deData:%s\n", bin2hex(deData,deDataLen));
+	
+
+	return ret;
+}
+
 //制作SM2 数字信封
 void testEnveloped()
 {
@@ -5480,15 +5658,16 @@ int main(int argc, char* argv[])
 {
 	ERR_load_ERR_strings();
 	ERR_load_crypto_strings();
-	testEnveloped();
+	testSm4EcbEncrypt();
+	//testEnveloped();
 	//-s 127.0.0.1:4433 --gmssl --verify -ca ./certs/CA.crt
 	//testVerifyP7();
 	//testAsn1();
-	testGetCertInfo();
+	/*testGetCertInfo();
 	getSM2Key();
 	testEvpKey();
 	testRsaP7();
-	testP7();
+	testP7();*/
 	int ret = 0;
 	const char* privKeyHex = "b82282531fc2ba3598a18b390dae160e0653e49676f2a570eeebcd97a8fa0b4f";
 	const char* pubKeyHex = "042e953b399f27ac62e74fb4f54db3afbaa255d0a2f0cbe906f108a8856c1217a39a22599cf1bdd21c7da57025a1d5dfbff9c6dc42a17a1716cf3867a03bf62069";
